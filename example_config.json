@@ -1,0 +1,16 @@
+{
+  "rules": [
+    {
+      "image": "01.png",
+      "text": "Welcome to this presentation. Today we will talk about digital transformation."
+    },
+    {
+      "image": "02.png",
+      "text": "The first step is understanding your current business processes."
+    }
+  ],
+  "matching": {
+    "mode": "full_phrase",
+    "similarity_threshold": 85
+  }
+}
