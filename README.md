@@ -46,6 +46,10 @@ python main.py \
   --out ./out
 ```
 
+If the output video ends early (common on Windows with FFmpeg concat + still images),
+this project uses a robust rendering approach (`-loop 1` inputs + `concat` filter) to
+ensure video duration matches the audio/timeline.
+
 Outputs:
 
 - `out/segments.json` – transcription segments with start/end timestamps
