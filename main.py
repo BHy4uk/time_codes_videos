@@ -65,20 +65,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
 
-    _check_binary("ffmpeg")
-    _check_binary("ffprobe")
-
     audio_path = Path(args.audio)
-    images_dir = Path(args.images)
-    config_path = Path(args.config)
     out_dir = Path(args.out)
 
     if not audio_path.exists():
         raise SystemExit(f"Audio file not found: {audio_path}")
-    if not images_dir.exists() or not images_dir.is_dir():
-        raise SystemExit(f"Images folder not found or not a directory: {images_dir}")
-    if not config_path.exists():
-        raise SystemExit(f"Config file not found: {config_path}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -86,10 +77,7 @@ def main() -> None:
     timeline_json_path = Path(args.timeline_json) if args.timeline_json else (out_dir / "timeline.json")
     output_video_path = Path(args.output_video) if args.output_video else (out_dir / "output.mp4")
 
-    # 1) Load config
-    cfg = load_config(str(config_path))
-
-    # 2) Transcribe
+    # 1) Transcribe (always)
     transcription = transcribe_audio(
         audio_path=str(audio_path),
         model_size_or_path=args.model,
@@ -98,6 +86,32 @@ def main() -> None:
         language=args.language,
     )
     segments_json_path.write_text(json.dumps(transcription, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # If user only wants transcription, stop here.
+    if args.transcribe_only:
+        print("Done (transcribe-only)")
+        print(f"- Segments: {segments_json_path}")
+        return
+
+    # For full pipeline we need config/images and ffmpeg.
+    if not args.images:
+        raise SystemExit("--images is required unless --transcribe-only is set")
+    if not args.config:
+        raise SystemExit("--config is required unless --transcribe-only is set")
+
+    images_dir = Path(args.images)
+    config_path = Path(args.config)
+
+    if not images_dir.exists() or not images_dir.is_dir():
+        raise SystemExit(f"Images folder not found or not a directory: {images_dir}")
+    if not config_path.exists():
+        raise SystemExit(f"Config file not found: {config_path}")
+
+    _check_binary("ffmpeg")
+    _check_binary("ffprobe")
+
+    # 2) Load config
+    cfg = load_config(str(config_path))
 
     # 3) Match phrases
     matches = match_segments_to_rules(
