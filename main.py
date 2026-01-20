@@ -35,9 +35,16 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate a video by syncing images to spoken phrases.")
 
     p.add_argument("--audio", required=True, help="Path to audio file (.mp3 or .wav)")
-    p.add_argument("--images", required=True, help="Folder containing images referenced by config")
-    p.add_argument("--config", required=True, help="JSON config mapping full phrases to images")
+    # In full pipeline mode these are required, but for --transcribe-only they are optional.
+    p.add_argument("--images", required=False, help="Folder containing images referenced by config")
+    p.add_argument("--config", required=False, help="JSON config mapping full phrases to images")
     p.add_argument("--out", default="./out", help="Output folder")
+
+    p.add_argument(
+        "--transcribe-only",
+        action="store_true",
+        help="Only produce segments.json (no config/images/ffmpeg required).",
+    )
 
     p.add_argument("--model", default="base", help="faster-whisper model size or path (default: base)")
     p.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
