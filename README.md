@@ -25,6 +25,19 @@ You must have `ffmpeg` and `ffprobe` installed and available on your PATH.
 
 ## Run
 
+### 1) Transcribe only (generate `segments.json`)
+
+Use this first if you haven’t built `mapping.json` yet:
+
+```bash
+python main.py \
+  --audio ./audio.mp3 \
+  --out ./out \
+  --transcribe-only
+```
+
+### 2) Full pipeline (segments → timeline → mp4)
+
 ```bash
 python main.py \
   --audio ./audio.mp3 \
