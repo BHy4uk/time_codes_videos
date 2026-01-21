@@ -83,6 +83,7 @@ def build_timeline(
                 "start": start,
                 "end": end,
                 "image": m["rule"]["image"],
+                "effects": m["rule"].get("effects") or {},
                 "source": {
                     "segment_id": m["segment_id"],
                     "segment_text": m["segment_text"],

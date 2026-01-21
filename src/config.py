@@ -8,6 +8,9 @@ from typing import Any, Dict, List, Optional
 class Rule:
     image: str
     text: str
+    # Optional per-scene effects configuration. Unknown/unsupported keys are allowed
+    # and should be safely ignored by the renderer.
+    effects: Optional[Dict[str, Any]] = None
 
 
 @dataclass(frozen=True)
@@ -48,11 +51,14 @@ def load_config(config_path: str) -> AppConfig:
             raise ValueError(f"Rule at index {i} must be an object")
         image = r.get("image")
         text = r.get("text")
+        effects = r.get("effects")
         if not isinstance(image, str) or not image.strip():
             raise ValueError(f"Rule at index {i} is missing non-empty 'image'")
         if not isinstance(text, str) or not text.strip():
             raise ValueError(f"Rule at index {i} is missing non-empty 'text'")
-        rules.append(Rule(image=image.strip(), text=text.strip()))
+        if effects is not None and not isinstance(effects, dict):
+            raise ValueError(f"Rule at index {i} has invalid 'effects' (must be an object)")
+        rules.append(Rule(image=image.strip(), text=text.strip(), effects=effects))
 
     matching_raw: Optional[Dict[str, Any]] = data.get("matching") if isinstance(data.get("matching"), dict) else None
     mode = (matching_raw or {}).get("mode", "full_phrase")
