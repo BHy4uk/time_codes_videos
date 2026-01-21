@@ -83,13 +83,55 @@ See `example_config.json`:
 
 ### Supported effects (all optional; can be combined)
 
-- `zoom`: `{ "type": "in"|"out", "scale": 1.0..3.0, "duration": seconds }`
-- `motion`: `{ "direction": "right"|"left"|"up"|"down", "intensity": 0.0..0.5 }`
-- `fade`: `{ "type": "in"|"out"|"inout", "duration": seconds }`
-- `darken`: `{ "amount": 0.0..1.0 }`
-- `vignette`: `{ "angle": 0..1.57, "eval": "init"|"frame" }`
-
+Each `rules[]` item may include an `effects` object. Effects are **per scene** (per image occurrence in the final timeline).
 Unknown effect keys are safely ignored.
+
+#### 1) `zoom` (Ken Burns–style zoom)
+
+```json
+"zoom": { "type": "in", "scale": 1.1, "duration": 4 }
+```
+
+- `type`: `"in"` or `"out"`
+- `scale`: target zoom scale (1.0 = no zoom). Recommended `1.05`–`1.2`.
+- `duration`: seconds for the zoom ramp. If omitted, zoom ramps over the whole scene duration.
+
+#### 2) `motion` (pan / simulated camera movement)
+
+```json
+"motion": { "direction": "right", "intensity": 0.05 }
+```
+
+- `direction`: `"right" | "left" | "up" | "down"`
+- `intensity`: how far to pan (0.0..0.5). Recommended `0.02`–`0.08`.
+
+This is implemented together with `zoom` via FFmpeg `zoompan`.
+
+#### 3) `fade` (fade in/out)
+
+```json
+"fade": { "type": "inout", "duration": 0.8 }
+```
+
+- `type`: `"in" | "out" | "inout"`
+- `duration`: seconds for each fade. For `inout`, the same duration is used at start and end.
+
+#### 4) `darken` (slight darkening)
+
+```json
+"darken": { "amount": 0.15 }
+```
+
+- `amount`: 0.0..1.0 (mapped to a small negative brightness). Recommended `0.05`–`0.25`.
+
+#### 5) `vignette` (edge darkening)
+
+```json
+"vignette": { "angle": 0.55, "eval": "init" }
+```
+
+- `angle`: 0..1.57 radians (larger = stronger/closer vignette). Recommended `0.45`–`0.8`.
+- `eval`: `"init"` (default) or `"frame"` (dynamic, slower).
 
 Notes:
 
