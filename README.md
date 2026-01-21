@@ -96,7 +96,7 @@ Unknown effect keys are safely ignored.
 - `scale`: target zoom scale (1.0 = no zoom). Recommended `1.03`–`1.12` for subtle motion.
 - `duration`: seconds for the zoom ramp. If omitted, zoom ramps over the whole scene duration.
 
-**Tip (anti-jitter):** the renderer generates each scene using a single still frame + `zoompan` for the entire scene duration to avoid zoom jitter on some systems.
+**Tip (anti-jitter):** the renderer generates each scene using a single still frame + `zoompan` for the entire scene duration, and renders with oversampling + pixel-rounded pan coordinates to minimize jitter/stepping (especially noticeable on small zoom values).
 
 #### 2) `motion` (pan / simulated camera movement)
 
