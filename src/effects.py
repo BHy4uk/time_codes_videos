@@ -102,14 +102,19 @@ def build_effects_filter(
                 f"{start_z:.6f}+({end_z:.6f}-{start_z:.6f})*min(on-1\,{ramp_frames-1})/{ramp_frames-1}"
             )
 
-        # motion x/y around centered crop window; offset within remaining margin.
-        # zoompan uses x/y in input coords; window size is iw/zoom, ih/zoom.
-        # max_x = iw - iw/zoom; max_y = ih - ih/zoom
-        # base center: (iw - iw/zoom)/2 etc.
-        # Round to whole pixels to avoid sub-pixel wobble caused by fractional
-        # crop coordinates.
-        x_center = "floor((iw-iw/zoom)/2)"
-        y_center = "floor((ih-ih/zoom)/2)"
+        # Base anchor (center by default, or target center if focus is provided).
+        # Desired formula (from your spec):
+        #   x = cx - (iw/zoom)/2
+        #   y = cy - (ih/zoom)/2
+        # Clamp to valid bounds to avoid borders.
+        #
+        # Note: `iw/zoom` is equivalent to `iw-iw/zoom` window math but more explicit.
+        x_unclamped = f"({cx_expr})-(iw/zoom)/2"
+        y_unclamped = f"({cy_expr})-(ih/zoom)/2"
+
+        # Clamp: 0 .. (iw - iw/zoom)
+        x_base = f"max(0\,min({x_unclamped}\,iw-iw/zoom))"
+        y_base = f"max(0\,min({y_unclamped}\,ih-ih/zoom))"
 
         # Offset by intensity * max_{x,y}, linearly over clip.
         progress = f"(on-1)/{max(1, total_frames-1)}"
