@@ -109,6 +109,32 @@ Unknown effect keys are safely ignored.
 
 This is implemented together with `zoom` via FFmpeg `zoompan`.
 
+#### 2b) `focus` (object-anchored push-in + pan, using manual coordinates)
+
+Use this when you want the camera to push-in and pan toward a specific object/region.
+Coordinates are measured in **absolute pixels on the ORIGINAL image** (e.g., from Photoshop).
+
+```json
+"focus": {
+  "source": { "width": 4000, "height": 3000 },
+  "target": { "x": 1200, "y": 800, "width": 600, "height": 500 }
+}
+```
+
+How it works:
+- Computes the target center:
+  - `cx = x + width/2`, `cy = y + height/2`
+- Normalizes `(cx,cy)` to `[0..1]` based on source image size
+- During the zoom ramp, the camera pans smoothly from center to the target center:
+  - `cx(t) = center + (target - center) * progress`
+- Uses `zoompan` math to keep the view centered on the anchor:
+  - `x = cx - (iw/zoom)/2`, `y = cy - (ih/zoom)/2`
+- Clamps x/y so the crop window stays inside the image (no black borders).
+
+Notes:
+- If you omit `source`, the tool will try to read the image size automatically.
+- `focus` can be used with `zoom` (recommended) and optionally with `fade/darken/vignette`.
+
 #### 3) `fade` (fade in/out)
 
 ```json
