@@ -64,7 +64,15 @@ See `example_config.json`:
 ```json
 {
   "rules": [
-    {"image": "01.png", "text": "Full sentence or paragraph ..."}
+    {
+      "image": "01.png",
+      "text": "Full sentence or paragraph ...",
+      "effects": {
+        "zoom": {"type": "in", "scale": 1.1, "duration": 4},
+        "motion": {"direction": "right", "intensity": 0.05},
+        "fade": {"type": "in", "duration": 1}
+      }
+    }
   ],
   "matching": {
     "mode": "full_phrase",
@@ -72,6 +80,16 @@ See `example_config.json`:
   }
 }
 ```
+
+### Supported effects (all optional; can be combined)
+
+- `zoom`: `{ "type": "in"|"out", "scale": 1.0..3.0, "duration": seconds }`
+- `motion`: `{ "direction": "right"|"left"|"up"|"down", "intensity": 0.0..0.5 }`
+- `fade`: `{ "type": "in"|"out"|"inout", "duration": seconds }`
+- `darken`: `{ "amount": 0.0..1.0 }`
+- `vignette`: `{ "angle": 0..1.57, "eval": "init"|"frame" }`
+
+Unknown effect keys are safely ignored.
 
 Notes:
 
