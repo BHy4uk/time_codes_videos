@@ -11,13 +11,22 @@ Deterministic pipeline:
 3. **Timeline generation** (strictly chronological, non-overlapping)
 4. **FFmpeg rendering** to MP4 with the audio as background
 
-## Install
+## Install (Windows)
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+Open PowerShell in the project folder (where `main.py` is) and run:
+
+```powershell
+py -m venv .venv
+.venv\Scripts\Activate.ps1
+py -m pip install --upgrade pip
+py -m pip install -r requirements.txt
 ```
+
+> If PowerShell blocks activation scripts, run once:
+>
+> ```powershell
+> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+> ```
 
 ### System dependency
 
