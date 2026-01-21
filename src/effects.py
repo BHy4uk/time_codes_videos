@@ -7,6 +7,21 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
+
+def _as_float(v: Any, default: float) -> float:
+    try:
+        return float(v)
+    except Exception:
+        return default
+
+
+def _as_int(v: Any, default: int) -> int:
+    try:
+        return int(v)
+    except Exception:
+        return default
+
+
 def build_effects_filter(
     effects: Dict[str, Any],
     width: int,
