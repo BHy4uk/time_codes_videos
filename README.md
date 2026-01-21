@@ -32,27 +32,27 @@ py -m pip install -r requirements.txt
 
 You must have `ffmpeg` and `ffprobe` installed and available on your PATH.
 
-## Run
+## Run (Windows)
 
 ### 1) Transcribe only (generate `segments.json`)
 
 Use this first if you haven’t built `mapping.json` yet:
 
-```bash
-python main.py \
-  --audio ./audio.mp3 \
-  --out ./out \
+```powershell
+python main.py `
+  --audio "./audio.mp3" `
+  --out "./out" `
   --transcribe-only
 ```
 
 ### 2) Full pipeline (segments → timeline → mp4)
 
-```bash
-python main.py \
-  --audio ./audio.mp3 \
-  --images ./images \
-  --config ./mapping.json \
-  --out ./out
+```powershell
+python main.py `
+  --audio "./audio.mp3" `
+  --images "./images" `
+  --config "./mapping.json" `
+  --out "./out"
 ```
 
 If the output video ends early (common on Windows with FFmpeg concat + still images),
