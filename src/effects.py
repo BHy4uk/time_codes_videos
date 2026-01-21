@@ -33,11 +33,10 @@ def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: 
 
     debug: Dict[str, Any] = {"applied": []}
 
-    # Base: keep aspect ratio, fit inside, pad to target, then yuv420p.
-    chain = [
-        f"scale={width}:{height}:force_original_aspect_ratio=decrease",
-        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
-    ]
+    # Base: keep aspect ratio, fit inside, pad to a canvas.
+    # When using zoompan we render at an oversampled resolution to reduce
+    # visible stepping/jitter from integer crop coordinates.
+    chain = []
 
     # ---- zoom + motion (zoompan) ----
     zoom_cfg = effects.get("zoom") if isinstance(effects.get("zoom"), dict) else None
