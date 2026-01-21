@@ -46,7 +46,13 @@ def render_video(
     # Validate images & build per-item durations
     input_args: List[str] = []
     durations: List[float] = []
+    effects_debug: List[Dict[str, Any]] = []
 
+    # We will build a per-input filter chain and then concat the processed streams.
+    per_stream_filters: List[str] = []
+    concat_inputs: List[str] = []
+
+    input_index = 0
     for it in items:
         img = images_dir_p / it["image"]
         if not img.exists():
@@ -72,23 +78,18 @@ def render_video(
             ]
         )
 
+        effects = it.get("effects") if isinstance(it.get("effects"), dict) else {}
+        vf, dbg = build_effects_filter(effects=effects, width=width, height=height, fps=fps, duration=dur)
+        effects_debug.append({"image": it.get("image"), "duration": dur, "effects": effects, "debug": dbg})
+
+        per_stream_filters.append(f"[{input_index}:v]setpts=PTS-STARTPTS,{vf}[v{input_index}]")
+        concat_inputs.append(f"[v{input_index}]")
+        input_index += 1
+
     if not durations:
         raise ValueError("Timeline items have non-positive durations; nothing to render")
 
     n = len(durations)
-
-    # Build filter_complex: scale/pad each stream, then concat.
-    # setpts ensures each clip starts at t=0 in its own timeline.
-    per_stream_filters = []
-    concat_inputs = []
-    for i in range(n):
-        per_stream_filters.append(
-            f"[{i}:v]setpts=PTS-STARTPTS,"
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
-            f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,"
-            f"format=yuv420p[v{i}]"
-        )
-        concat_inputs.append(f"[v{i}]")
 
     filter_complex = ";".join(per_stream_filters + [f"{''.join(concat_inputs)}concat=n={n}:v=1:a=0[vout]"])
 
