@@ -86,7 +86,11 @@ See `example_config.json`:
       "effects": {
         "zoom": {"type": "in", "scale": 1.1, "duration": 4},
         "motion": {"direction": "right", "intensity": 0.05},
-        "fade": {"type": "in", "duration": 1}
+        "fade": {"type": "in", "duration": 1},
+        "focus": {
+          "source": { "width": 4000, "height": 3000 },
+          "target": { "x": 1200, "y": 800, "width": 600, "height": 500 }
+        }
       }
     }
   ],
