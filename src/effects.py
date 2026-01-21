@@ -81,8 +81,10 @@ def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: 
         # zoompan uses x/y in input coords; window size is iw/zoom, ih/zoom.
         # max_x = iw - iw/zoom; max_y = ih - ih/zoom
         # base center: (iw - iw/zoom)/2 etc.
-        x_center = "(iw-iw/zoom)/2"
-        y_center = "(ih-ih/zoom)/2"
+        # Round to whole pixels to avoid sub-pixel wobble caused by fractional
+        # crop coordinates.
+        x_center = "floor((iw-iw/zoom)/2)"
+        y_center = "floor((ih-ih/zoom)/2)"
 
         # Offset by intensity * max_{x,y}, linearly over clip.
         progress = f"(on-1)/{max(1, total_frames-1)}"
