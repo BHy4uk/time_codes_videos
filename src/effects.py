@@ -157,6 +157,61 @@ def build_effects_filter(
                     "fps": fps,
                     "total_frames": total_frames,
                     "ramp_frames": ramp_frames,
+
+        # Optional focus target (Photoshop pixel bbox on the *original* image).
+        # If provided, zoom/pan will be anchored toward the target center.
+        #
+        # mapping.json:
+        # "focus": {
+        #   "source": {"width": 4000, "height": 3000},   (optional)
+        #   "target": {"x": 1200, "y": 800, "width": 600, "height": 500}
+        # }
+        target = focus_cfg.get("target") if isinstance(focus_cfg, dict) else None
+        source_override = focus_cfg.get("source") if isinstance(focus_cfg, dict) else None
+
+        src_w = None
+        src_h = None
+        if isinstance(source_override, dict):
+            src_w = _as_int(source_override.get("width"), 0) or None
+            src_h = _as_int(source_override.get("height"), 0) or None
+        if (src_w is None or src_h is None) and source_size is not None:
+            src_w, src_h = source_size
+
+        # Default anchor is center of the frame (no focus).
+        cx_expr = "iw/2"
+        cy_expr = "ih/2"
+
+        if isinstance(target, dict) and src_w and src_h:
+            tx = _as_float(target.get("x"), 0.0)
+            ty = _as_float(target.get("y"), 0.0)
+            tw = _as_float(target.get("width"), 0.0)
+            th = _as_float(target.get("height"), 0.0)
+
+            # center of target bbox in source pixels
+            cx = tx + (tw / 2.0)
+            cy = ty + (th / 2.0)
+
+            # normalize into [0..1] and map to current iw/ih (after our pre-scaling)
+            nx = cx / float(src_w)
+            ny = cy / float(src_h)
+
+            cx_expr = f"({nx:.10f})*iw"
+            cy_expr = f"({ny:.10f})*ih"
+
+            debug["applied"].append(
+                {
+                    "type": "focus",
+                    "config": focus_cfg,
+                    "computed": {
+                        "source_size": [int(src_w), int(src_h)],
+                        "target_center_source": [cx, cy],
+                        "target_center_norm": [nx, ny],
+                        "cx_expr": cx_expr,
+                        "cy_expr": cy_expr,
+                    },
+                }
+            )
+
                     "z_expr": z_expr,
                     "x_expr": x_expr,
                     "y_expr": y_expr,
