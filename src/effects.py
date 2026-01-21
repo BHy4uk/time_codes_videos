@@ -130,8 +130,8 @@ def build_effects_filter(
             elif motion_dir == "down":
                 y_offset = f"({intensity:.6f})*(ih-ih/zoom)*{progress}"
 
-        x_expr = f"floor({x_center}+{x_offset})"
-        y_expr = f"floor({y_center}+{y_offset})"
+        x_expr = f"floor(max(0\,min(({x_base})+({x_offset})\,iw-iw/zoom)))"
+        y_expr = f"floor(max(0\,min(({y_base})+({y_offset})\,ih-ih/zoom)))"
 
         # zoompan: generate the whole scene from a single input frame.
         # To reduce jitter, render at an oversampled size and then downscale.
