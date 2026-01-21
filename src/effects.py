@@ -68,7 +68,7 @@ def build_effects_filter(
     if zoom_cfg is not None or motion_cfg is not None or focus_cfg is not None:
         # Defaults
         zoom_type = (zoom_cfg or {}).get("type", "in")
-        target_scale = float((zoom_cfg or {}).get("scale", 1.1))
+        target_scale = _as_float((zoom_cfg or {}).get("scale", 1.1), 1.1)
         target_scale = _clamp(target_scale, 1.0, 3.0)
 
         motion_dir = (motion_cfg or {}).get("direction", "right")
