@@ -28,9 +28,16 @@ py -m pip install -r requirements.txt
 > Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 > ```
 
-### System dependency
+### System dependency (Windows)
 
 You must have `ffmpeg` and `ffprobe` installed and available on your PATH.
+
+Quick check:
+
+```powershell
+ffmpeg -version
+ffprobe -version
+```
 
 ## Run (Windows)
 
