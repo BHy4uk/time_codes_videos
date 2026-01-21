@@ -41,7 +41,9 @@ ffprobe -version
 
 ## Run (Windows)
 
-### 1) Transcribe only (generate `segments.json`)
+### Option A) Manual (recommended when setting up)
+
+#### 1) Transcribe only (generate `segments.json`)
 
 Use this first if you haven’t built `mapping.json` yet:
 
@@ -52,7 +54,7 @@ python main.py `
   --transcribe-only
 ```
 
-### 2) Full pipeline (segments → timeline → mp4)
+#### 2) Full pipeline (segments → timeline → mp4)
 
 ```powershell
 python main.py `
@@ -61,6 +63,28 @@ python main.py `
   --config "./mapping.json" `
   --out "./out"
 ```
+
+### Option B) One-command helper for your folder convention (case/block)
+
+If your files are organized like:
+
+- `D:\State_51\cases\case_002\block_00\audio\audio.mp3`
+- `D:\State_51\cases\case_002\block_00\images\...`
+- `D:\State_51\cases\case_002\block_00\config\mapping.json`
+- `D:\State_51\cases\case_002\block_00\out\...`
+
+You can run the interactive helper script:
+
+```powershell
+python .\run_case.py
+```
+
+It will:
+- ask for `case_XXX` and `block_YY`
+- create `out/` and `config/` folders if missing
+- create a template `config/mapping.json` if missing
+- run `--transcribe-only`
+- ask for confirmation before running the full render
 
 If the output video ends early (common on Windows with FFmpeg concat + still images),
 this project uses a robust rendering approach (`-loop 1` inputs + `concat` filter) to
