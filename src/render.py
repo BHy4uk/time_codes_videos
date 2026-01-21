@@ -142,6 +142,7 @@ def render_video(
             }
             for it in items
         ],
+        "effects_debug": effects_debug,
     }
     (out_p.parent / "render_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2),
