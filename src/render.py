@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
 
+from .effects import build_effects_filter
+
 
 def render_video(
     timeline: Dict[str, Any],
