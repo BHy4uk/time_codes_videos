@@ -5,7 +5,10 @@
       "text": "Welcome to this presentation. Today we will talk about digital transformation.",
       "effects": {
         "zoom": {"type": "in", "scale": 1.1, "duration": 4},
-        "motion": {"direction": "right", "intensity": 0.05},
+        "focus": {
+          "source": {"width": 4000, "height": 3000},
+          "target": {"x": 1200, "y": 800, "width": 600, "height": 500}
+        },
         "fade": {"type": "in", "duration": 1}
       }
     },
