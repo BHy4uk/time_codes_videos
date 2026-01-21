@@ -64,15 +64,13 @@ def render_video(
 
         durations.append(dur)
 
-        # Input options apply to the *next* -i
+        # Use an infinite looped still image as input.
+        # Duration is enforced in the filtergraph via `trim=duration=...` to avoid
+        # zoompan jitter/restarts that can happen with time-limited image inputs.
         input_args.extend(
             [
                 "-loop",
                 "1",
-                "-framerate",
-                str(fps),
-                "-t",
-                f"{dur:.6f}",
                 "-i",
                 str(img),
             ]

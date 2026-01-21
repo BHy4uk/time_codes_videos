@@ -102,9 +102,10 @@ def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: 
         x_expr = f"{x_center}+{x_offset}"
         y_expr = f"{y_center}+{y_offset}"
 
-        # zoompan outputs exact size s=widthxheight
+        # zoompan: generate the whole scene from a single input frame.
+        # This avoids per-frame restarts/jitter on some platforms.
         chain.append(
-            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d=1:s={width}x{height}:fps={fps}"
+            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={width}x{height}:fps={fps}"
         )
 
         debug["applied"].append(
@@ -163,6 +164,9 @@ def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: 
         chain.append(f"vignette=angle={angle}:eval={eval_mode}")
         debug["applied"].append({"type": "vignette", "config": {"angle": angle, "eval": eval_mode}})
 
+    # Ensure deterministic FPS and exact scene duration for concat.
+    chain.append(f"fps={fps}")
+    chain.append(f"trim=duration={duration:.6f}")
     chain.append("format=yuv420p")
 
     return ",".join(chain), debug
