@@ -7,7 +7,14 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: int, duration: float) -> Tuple[str, Dict[str, Any]]:
+def build_effects_filter(
+    effects: Dict[str, Any],
+    width: int,
+    height: int,
+    fps: int,
+    duration: float,
+    source_size: Optional[Tuple[int, int]] = None,
+) -> Tuple[str, Dict[str, Any]]:
     """Build an FFmpeg video filter chain implementing supported effects.
 
     Supported (optional/composable):
