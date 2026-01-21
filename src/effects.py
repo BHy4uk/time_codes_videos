@@ -7,7 +7,6 @@ def _clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
 
 
-
 def _as_float(v: Any, default: float) -> float:
     try:
         return float(v)
@@ -33,59 +32,51 @@ def build_effects_filter(
     """Build an FFmpeg video filter chain implementing supported effects.
 
     Supported (optional/composable):
-    - zoom: {"type": "in"|"out", "scale": 1.1..2.0, "duration": seconds(optional)}
+    - zoom: {"type": "in"|"out", "scale": 1.0..3.0, "duration": seconds(optional)}
     - motion: {"direction": "right"|"left"|"down"|"up", "intensity": 0.0..0.5}
+    - focus: {
+        "source": {"width": <int>, "height": <int>} (optional),
+        "target": {"x": <px>, "y": <px>, "width": <px>, "height": <px>}
+      }
+      `target` coords are absolute pixels measured on the ORIGINAL image (e.g., Photoshop).
+      The center of this bbox becomes the anchor for zoom/pan.
     - fade: {"type": "in"|"out"|"inout", "duration": seconds}
     - darken: {"amount": 0.0..1.0}
     - vignette: {"angle": radians (0..PI/2), "eval": "init"|"frame"}
 
     Unknown keys are ignored.
 
-    Returns: (filter_string_without_trailing_comma, debug_info)
-
-    Notes:
-    - We build effects on top of a base scale/pad.
-    - zoom/motion are implemented using `zoompan`.
-    - fade uses `fade` filter.
-    - darken uses `eq=brightness=`.
+    Returns: (filter_string, debug_info)
 
     Determinism:
-    - All expressions are deterministic functions of frame number/time.
+    - fixed fps
+    - expressions depend only on frame number
+    - `trim=duration=...` ensures exact scene duration
     """
 
     debug: Dict[str, Any] = {"applied": []}
 
-    # Base: keep aspect ratio, fit inside, pad to a canvas.
-    # When using zoompan we render at an oversampled resolution to reduce
-    # visible stepping/jitter from integer crop coordinates.
-
-
-    chain = []
-
-    # ---- zoom + motion (+ optional focus target) (zoompan) ----
     zoom_cfg = effects.get("zoom") if isinstance(effects.get("zoom"), dict) else None
     motion_cfg = effects.get("motion") if isinstance(effects.get("motion"), dict) else None
     focus_cfg = effects.get("focus") if isinstance(effects.get("focus"), dict) else None
 
-    if zoom_cfg is not None or motion_cfg is not None or focus_cfg is not None:
-        # Defaults
+    use_zoompan = zoom_cfg is not None or motion_cfg is not None or focus_cfg is not None
+
+    chain = []
+
+    # ---------- ZOOMPAN (zoom + motion + focus) ----------
+    if use_zoompan:
         zoom_type = (zoom_cfg or {}).get("type", "in")
-        target_scale = _as_float((zoom_cfg or {}).get("scale", 1.1), 1.1)
-        target_scale = _clamp(target_scale, 1.0, 3.0)
+        target_scale = _clamp(_as_float((zoom_cfg or {}).get("scale", 1.08), 1.08), 1.0, 3.0)
 
         motion_dir = (motion_cfg or {}).get("direction", "right")
-        intensity = _as_float((motion_cfg or {}).get("intensity", 0.0), 0.0)
-        intensity = _clamp(intensity, 0.0, 0.5)
+        intensity = _clamp(_as_float((motion_cfg or {}).get("intensity", 0.0), 0.0), 0.0, 0.5)
 
-        # Use full clip duration; allow zoom.duration to override the ramp time.
-        zoom_ramp = _as_float((zoom_cfg or {}).get("duration", duration), duration)
-        zoom_ramp = _clamp(zoom_ramp, 0.01, duration)
+        zoom_ramp = _clamp(_as_float((zoom_cfg or {}).get("duration", duration), duration), 0.01, duration)
 
         total_frames = max(1, int(round(duration * fps)))
         ramp_frames = max(1, int(round(zoom_ramp * fps)))
 
-        # z expression: linear ramp for first ramp_frames, then hold.
-        # pzoom is available, but we use explicit formula based on output frame number (on).
         if zoom_type == "out":
             start_z = target_scale
             end_z = 1.0
@@ -93,63 +84,101 @@ def build_effects_filter(
             start_z = 1.0
             end_z = target_scale
 
-        # Use on (output frame number, 1-based). Clamp after ramp.
-        # z = start + (end-start) * min(on-1, ramp_frames-1)/(ramp_frames-1)
         if ramp_frames <= 1:
             z_expr = f"{end_z:.6f}"
+            pan_progress = "1"
         else:
-            z_expr = (
-                f"{start_z:.6f}+({end_z:.6f}-{start_z:.6f})*min(on-1\,{ramp_frames-1})/{ramp_frames-1}"
-            )
+            z_expr = f"{start_z:.6f}+({end_z:.6f}-{start_z:.6f})*min(on-1\\,{ramp_frames-1})/{ramp_frames-1}"
+            # pan progresses with the same ramp as zoom (smooth pan while zooming)
+            pan_progress = f"min(on-1\\,{ramp_frames-1})/{ramp_frames-1}"
 
-        # Base anchor (center by default, or target center if focus is provided).
-        # Desired formula (from your spec):
-        #   x = cx - (iw/zoom)/2
-        #   y = cy - (ih/zoom)/2
-        # Clamp to valid bounds to avoid borders.
-        #
-        # Note: `iw/zoom` is equivalent to `iw-iw/zoom` window math but more explicit.
+        # Focus target center in normalized coords
+        # If not available, default is center of frame.
+        target_nx: Optional[float] = None
+        target_ny: Optional[float] = None
+        if focus_cfg is not None:
+            target = focus_cfg.get("target") if isinstance(focus_cfg.get("target"), dict) else None
+            source_override = focus_cfg.get("source") if isinstance(focus_cfg.get("source"), dict) else None
+
+            src_w = None
+            src_h = None
+            if source_override is not None:
+                src_w = _as_int(source_override.get("width"), 0) or None
+                src_h = _as_int(source_override.get("height"), 0) or None
+            if (src_w is None or src_h is None) and source_size is not None:
+                src_w, src_h = source_size
+
+            if target is not None and src_w and src_h:
+                tx = _as_float(target.get("x"), 0.0)
+                ty = _as_float(target.get("y"), 0.0)
+                tw = _as_float(target.get("width"), 0.0)
+                th = _as_float(target.get("height"), 0.0)
+                cx = tx + (tw / 2.0)
+                cy = ty + (th / 2.0)
+                target_nx = cx / float(src_w)
+                target_ny = cy / float(src_h)
+
+                debug["applied"].append(
+                    {
+                        "type": "focus",
+                        "config": focus_cfg,
+                        "computed": {
+                            "source_size": [int(src_w), int(src_h)],
+                            "target_center_source": [cx, cy],
+                            "target_center_norm": [target_nx, target_ny],
+                            "pan_progress": pan_progress,
+                        },
+                    }
+                )
+
+        # Determine (cx,cy) expressions in current frame coordinates.
+        # We pan from center toward target during the zoom ramp.
+        if target_nx is not None and target_ny is not None:
+            cx_expr = f"iw/2+(({target_nx:.10f})*iw-iw/2)*({pan_progress})"
+            cy_expr = f"ih/2+(({target_ny:.10f})*ih-ih/2)*({pan_progress})"
+        else:
+            cx_expr = "iw/2"
+            cy_expr = "ih/2"
+
+        # Base anchored pan (spec):
+        # x = cx - (iw/zoom)/2
+        # y = cy - (ih/zoom)/2
         x_unclamped = f"({cx_expr})-(iw/zoom)/2"
         y_unclamped = f"({cy_expr})-(ih/zoom)/2"
 
-        # Clamp: 0 .. (iw - iw/zoom)
-        x_base = f"max(0\,min({x_unclamped}\,iw-iw/zoom))"
-        y_base = f"max(0\,min({y_unclamped}\,ih-ih/zoom))"
+        x_base = f"max(0\\,min({x_unclamped}\\,iw-iw/zoom))"
+        y_base = f"max(0\\,min({y_unclamped}\\,ih-ih/zoom))"
 
-        # Offset by intensity * max_{x,y}, linearly over clip.
-        progress = f"(on-1)/{max(1, total_frames-1)}"
+        # Optional extra motion offset (still deterministic)
+        progress_full = f"(on-1)/{max(1, total_frames-1)}"
         x_offset = "0"
         y_offset = "0"
         if intensity > 0:
             if motion_dir == "left":
-                x_offset = f"-({intensity:.6f})*(iw-iw/zoom)*{progress}"
+                x_offset = f"-({intensity:.6f})*(iw-iw/zoom)*{progress_full}"
             elif motion_dir == "right":
-                x_offset = f"({intensity:.6f})*(iw-iw/zoom)*{progress}"
+                x_offset = f"({intensity:.6f})*(iw-iw/zoom)*{progress_full}"
             elif motion_dir == "up":
-                y_offset = f"-({intensity:.6f})*(ih-ih/zoom)*{progress}"
+                y_offset = f"-({intensity:.6f})*(ih-ih/zoom)*{progress_full}"
             elif motion_dir == "down":
-                y_offset = f"({intensity:.6f})*(ih-ih/zoom)*{progress}"
+                y_offset = f"({intensity:.6f})*(ih-ih/zoom)*{progress_full}"
 
-        x_expr = f"floor(max(0\,min(({x_base})+({x_offset})\,iw-iw/zoom)))"
-        y_expr = f"floor(max(0\,min(({y_base})+({y_offset})\,ih-ih/zoom)))"
+        # Round to integer pixels to reduce micro-wobble.
+        x_expr = f"floor(max(0\\,min(({x_base})+({x_offset})\\,iw-iw/zoom)))"
+        y_expr = f"floor(max(0\\,min(({y_base})+({y_offset})\\,ih-ih/zoom)))"
 
-        # zoompan: generate the whole scene from a single input frame.
-        # To reduce jitter, render at an oversampled size and then downscale.
+        # Oversample to reduce visible stepping, then downscale.
         oversample = 2
         ow = width * oversample
         oh = height * oversample
 
-        chain.append(
-            f"scale={ow}:{oh}:force_original_aspect_ratio=increase"
-        )
-        chain.append(
-            f"crop={ow}:{oh}"
-        )
-        chain.append(
-            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={ow}x{oh}:fps={fps}"
-        )
-        chain.append(
-            f"scale={width}:{height}:flags=lanczos"
+        chain.extend(
+            [
+                f"scale={ow}:{oh}:force_original_aspect_ratio=increase",
+                f"crop={ow}:{oh}",
+                f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={ow}x{oh}:fps={fps}",
+                f"scale={width}:{height}:flags=lanczos",
+            ]
         )
 
         debug["applied"].append(
@@ -162,74 +191,29 @@ def build_effects_filter(
                     "fps": fps,
                     "total_frames": total_frames,
                     "ramp_frames": ramp_frames,
-
-        # Optional focus target (Photoshop pixel bbox on the *original* image).
-        # If provided, zoom/pan will be anchored toward the target center.
-        #
-        # mapping.json:
-        # "focus": {
-        #   "source": {"width": 4000, "height": 3000},   (optional)
-        #   "target": {"x": 1200, "y": 800, "width": 600, "height": 500}
-        # }
-        target = focus_cfg.get("target") if isinstance(focus_cfg, dict) else None
-        source_override = focus_cfg.get("source") if isinstance(focus_cfg, dict) else None
-
-        src_w = None
-        src_h = None
-        if isinstance(source_override, dict):
-            src_w = _as_int(source_override.get("width"), 0) or None
-            src_h = _as_int(source_override.get("height"), 0) or None
-        if (src_w is None or src_h is None) and source_size is not None:
-            src_w, src_h = source_size
-
-        # Default anchor is center of the frame (no focus).
-        cx_expr = "iw/2"
-        cy_expr = "ih/2"
-
-        if isinstance(target, dict) and src_w and src_h:
-            tx = _as_float(target.get("x"), 0.0)
-            ty = _as_float(target.get("y"), 0.0)
-            tw = _as_float(target.get("width"), 0.0)
-            th = _as_float(target.get("height"), 0.0)
-
-            # center of target bbox in source pixels
-            cx = tx + (tw / 2.0)
-            cy = ty + (th / 2.0)
-
-            # normalize into [0..1] and map to current iw/ih (after our pre-scaling)
-            nx = cx / float(src_w)
-            ny = cy / float(src_h)
-
-            cx_expr = f"({nx:.10f})*iw"
-            cy_expr = f"({ny:.10f})*ih"
-
-            debug["applied"].append(
-                {
-                    "type": "focus",
-                    "config": focus_cfg,
-                    "computed": {
-                        "source_size": [int(src_w), int(src_h)],
-                        "target_center_source": [cx, cy],
-                        "target_center_norm": [nx, ny],
-                        "cx_expr": cx_expr,
-                        "cy_expr": cy_expr,
-                    },
-                }
-            )
-
                     "z_expr": z_expr,
+                    "cx_expr": cx_expr,
+                    "cy_expr": cy_expr,
                     "x_expr": x_expr,
                     "y_expr": y_expr,
                 },
             }
         )
 
-    # ---- fade ----
+    else:
+        # No zoompan: simple fit + pad
+        chain.extend(
+            [
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease",
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            ]
+        )
+
+    # ---------- FADE ----------
     fade_cfg = effects.get("fade") if isinstance(effects.get("fade"), dict) else None
     if fade_cfg is not None:
         fade_type = (fade_cfg.get("type") or "in").lower()
-        fade_dur = float(fade_cfg.get("duration", 1.0))
-        fade_dur = _clamp(fade_dur, 0.0, duration)
+        fade_dur = _clamp(_as_float(fade_cfg.get("duration", 1.0), 1.0), 0.0, duration)
 
         if fade_type in ("in", "inout") and fade_dur > 0:
             chain.append(f"fade=t=in:st=0:d={fade_dur:.6f}")
@@ -239,27 +223,19 @@ def build_effects_filter(
 
         debug["applied"].append({"type": "fade", "config": fade_cfg})
 
-    # ---- darken ----
+    # ---------- DARKEN ----------
     darken_cfg = effects.get("darken") if isinstance(effects.get("darken"), dict) else None
     if darken_cfg is not None:
-        amount = float(darken_cfg.get("amount", 0.0))
-        amount = _clamp(amount, 0.0, 1.0)
-        # brightness range is roughly [-1..1]; we'll map amount 0..1 -> 0..-0.3
+        amount = _clamp(_as_float(darken_cfg.get("amount", 0.0), 0.0), 0.0, 1.0)
         brightness = -0.3 * amount
         chain.append(f"eq=brightness={brightness:.6f}")
         debug["applied"].append({"type": "darken", "config": {"amount": amount, "brightness": brightness}})
 
-    # ---- vignette ----
+    # ---------- VIGNETTE ----------
     vignette_cfg = effects.get("vignette") if isinstance(effects.get("vignette"), dict) else None
     if vignette_cfg is not None:
-        angle = vignette_cfg.get("angle", None)
-        eval_mode = vignette_cfg.get("eval", "init")
-        if angle is None:
-            # a gentle default
-            angle = 0.6
-        angle = float(angle)
-        angle = _clamp(angle, 0.0, 1.57079632679)
-        eval_mode = "frame" if str(eval_mode).lower() == "frame" else "init"
+        angle = _clamp(_as_float(vignette_cfg.get("angle", 0.6), 0.6), 0.0, 1.57079632679)
+        eval_mode = "frame" if str(vignette_cfg.get("eval", "init")).lower() == "frame" else "init"
         chain.append(f"vignette=angle={angle}:eval={eval_mode}")
         debug["applied"].append({"type": "vignette", "config": {"angle": angle, "eval": eval_mode}})
 
