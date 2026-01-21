@@ -72,7 +72,7 @@ def build_effects_filter(
         target_scale = _clamp(target_scale, 1.0, 3.0)
 
         motion_dir = (motion_cfg or {}).get("direction", "right")
-        intensity = float((motion_cfg or {}).get("intensity", 0.0))
+        intensity = _as_float((motion_cfg or {}).get("intensity", 0.0), 0.0)
         intensity = _clamp(intensity, 0.0, 0.5)
 
         # Use full clip duration; allow zoom.duration to override the ramp time.
