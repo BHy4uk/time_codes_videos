@@ -76,7 +76,7 @@ def build_effects_filter(
         intensity = _clamp(intensity, 0.0, 0.5)
 
         # Use full clip duration; allow zoom.duration to override the ramp time.
-        zoom_ramp = float((zoom_cfg or {}).get("duration", duration))
+        zoom_ramp = _as_float((zoom_cfg or {}).get("duration", duration), duration)
         zoom_ramp = _clamp(zoom_ramp, 0.01, duration)
 
         total_frames = max(1, int(round(duration * fps)))
