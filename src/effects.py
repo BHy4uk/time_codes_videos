@@ -60,11 +60,12 @@ def build_effects_filter(
     # visible stepping/jitter from integer crop coordinates.
     chain = []
 
-    # ---- zoom + motion (zoompan) ----
+    # ---- zoom + motion (+ optional focus target) (zoompan) ----
     zoom_cfg = effects.get("zoom") if isinstance(effects.get("zoom"), dict) else None
     motion_cfg = effects.get("motion") if isinstance(effects.get("motion"), dict) else None
+    focus_cfg = effects.get("focus") if isinstance(effects.get("focus"), dict) else None
 
-    if zoom_cfg is not None or motion_cfg is not None:
+    if zoom_cfg is not None or motion_cfg is not None or focus_cfg is not None:
         # Defaults
         zoom_type = (zoom_cfg or {}).get("type", "in")
         target_scale = float((zoom_cfg or {}).get("scale", 1.1))
