@@ -102,9 +102,22 @@ def build_effects_filter(effects: Dict[str, Any], width: int, height: int, fps: 
         y_expr = f"{y_center}+{y_offset}"
 
         # zoompan: generate the whole scene from a single input frame.
-        # This avoids per-frame restarts/jitter on some platforms.
+        # To reduce jitter, render at an oversampled size and then downscale.
+        oversample = 2
+        ow = width * oversample
+        oh = height * oversample
+
         chain.append(
-            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={width}x{height}:fps={fps}"
+            f"scale={ow}:{oh}:force_original_aspect_ratio=increase"
+        )
+        chain.append(
+            f"crop={ow}:{oh}"
+        )
+        chain.append(
+            f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={ow}x{oh}:fps={fps}"
+        )
+        chain.append(
+            f"scale={width}:{height}:flags=lanczos"
         )
 
         debug["applied"].append(
