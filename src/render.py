@@ -79,7 +79,23 @@ def render_video(
         )
 
         effects = it.get("effects") if isinstance(it.get("effects"), dict) else {}
-        vf, dbg = build_effects_filter(effects=effects, width=width, height=height, fps=fps, duration=dur)
+
+        # Provide original image size so effects (e.g., object-anchored focus) can
+        # normalize Photoshop pixel coordinates.
+        try:
+            with Image.open(img) as im:
+                orig_w, orig_h = im.size
+        except Exception:
+            orig_w, orig_h = None, None
+
+        vf, dbg = build_effects_filter(
+            effects=effects,
+            width=width,
+            height=height,
+            fps=fps,
+            duration=dur,
+            source_size=(orig_w, orig_h) if orig_w and orig_h else None,
+        )
         effects_debug.append({"image": it.get("image"), "duration": dur, "effects": effects, "debug": dbg})
 
         per_stream_filters.append(f"[{input_index}:v]setpts=PTS-STARTPTS,{vf}[v{input_index}]")
