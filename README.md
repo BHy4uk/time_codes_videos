@@ -130,6 +130,8 @@ See `example_config.json`:
 Each `rules[]` item may include an `effects` object. Effects are **per scene** (per image occurrence in the final timeline).
 Unknown effect keys are safely ignored.
 
+**Important (normalization):** before applying any effects, every image is first normalized onto a fixed **1920×1080** canvas (scale-to-fit + pad). After that, all effects operate consistently with `iw=1920`, `ih=1080`.
+
 #### 1) `zoom` (Ken Burns–style zoom)
 
 ```json
