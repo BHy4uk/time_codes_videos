@@ -115,8 +115,20 @@ def build_effects_filter(
                 th = _as_float(target.get("height"), 0.0)
                 cx = tx + (tw / 2.0)
                 cy = ty + (th / 2.0)
-                target_nx = cx / float(src_w)
-                target_ny = cy / float(src_h)
+
+                # Normalize into the final 1920x1080 (width x height) canvas coordinates
+                # produced by: scale=width:height:force_original_aspect_ratio=decrease + pad.
+                s = min(width / float(src_w), height / float(src_h))
+                new_w = float(src_w) * s
+                new_h = float(src_h) * s
+                pad_x = (width - new_w) / 2.0
+                pad_y = (height - new_h) / 2.0
+
+                target_cx_canvas = pad_x + (cx * s)
+                target_cy_canvas = pad_y + (cy * s)
+
+                target_nx = target_cx_canvas / float(width)
+                target_ny = target_cy_canvas / float(height)
 
                 debug["applied"].append(
                     {
@@ -125,6 +137,9 @@ def build_effects_filter(
                         "computed": {
                             "source_size": [int(src_w), int(src_h)],
                             "target_center_source": [cx, cy],
+                            "scale": s,
+                            "pad": [pad_x, pad_y],
+                            "target_center_canvas": [target_cx_canvas, target_cy_canvas],
                             "target_center_norm": [target_nx, target_ny],
                             "pan_progress": pan_progress,
                         },
