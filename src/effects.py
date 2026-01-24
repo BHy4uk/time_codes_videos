@@ -182,6 +182,15 @@ def build_effects_filter(
         x_expr = f"floor(max(0\\,min(({x_base})+({x_offset})\\,iw-iw/zoom)))"
         y_expr = f"floor(max(0\\,min(({y_base})+({y_offset})\\,ih-ih/zoom)))"
 
+        # Normalize image FIRST to a fixed 1920x1080 canvas.
+        # After this point, zoompan/focus/fade all operate on a consistent iw/ih.
+        chain.extend(
+            [
+                f"scale={width}:{height}:force_original_aspect_ratio=decrease",
+                f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
+            ]
+        )
+
         # Oversample to reduce visible stepping, then downscale.
         oversample = 2
         ow = width * oversample
@@ -189,8 +198,7 @@ def build_effects_filter(
 
         chain.extend(
             [
-                f"scale={ow}:{oh}:force_original_aspect_ratio=increase",
-                f"crop={ow}:{oh}",
+                f"scale={ow}:{oh}:flags=lanczos",
                 f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={ow}x{oh}:fps={fps}",
                 f"scale={width}:{height}:flags=lanczos",
             ]
