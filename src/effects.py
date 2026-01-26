@@ -201,6 +201,7 @@ def build_effects_filter(
                 f"scale={ow}:{oh}:flags=lanczos",
                 f"zoompan=z='{z_expr}':x='{x_expr}':y='{y_expr}':d={total_frames}:s={ow}x{oh}:fps={fps}",
                 f"scale={width}:{height}:flags=lanczos",
+                "setsar=1",
             ]
         )
 
