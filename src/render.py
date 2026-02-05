@@ -98,7 +98,9 @@ def render_video(
         )
         effects_debug.append({"image": it.get("image"), "duration": dur, "effects": effects, "debug": dbg})
 
-        per_stream_filters.append(f"[{input_index}:v]setpts=PTS-STARTPTS,{vf}[v{input_index}]")
+        # Force a consistent SAR on every scene before concat.
+        # (FFmpeg concat requires all inputs to match size + SAR exactly.)
+        per_stream_filters.append(f"[{input_index}:v]setpts=PTS-STARTPTS,{vf},setsar=1[v{input_index}]")
         concat_inputs.append(f"[v{input_index}]")
         input_index += 1
 
