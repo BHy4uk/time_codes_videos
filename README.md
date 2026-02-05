@@ -8,8 +8,9 @@ Deterministic pipeline:
 
 1. **Audio → transcription** (segment timestamps) using **faster-whisper**
 2. **Full-phrase fuzzy matching** against configured phrases (token_set_ratio + normalization)
-3. **Timeline generation** (strictly chronological, non-overlapping)
-4. **FFmpeg rendering** to MP4 with the audio as background
+3. **Sentence refinement (optional, default ON)**: splits Whisper segments into sentence-like chunks to improve trigger timing.
+4. **Timeline generation** (strictly chronological, non-overlapping)
+5. **FFmpeg rendering** to MP4 with the audio as background
 
 ## Install (Windows)
 
