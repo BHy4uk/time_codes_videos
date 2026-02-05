@@ -42,7 +42,7 @@ def transcribe_audio(
         temperature=0.0,
         vad_filter=True,
         vad_parameters={"min_silence_duration_ms": 500},
-        word_timestamps=False,
+        word_timestamps=True,
         condition_on_previous_text=False,
         initial_prompt=None,
         compression_ratio_threshold=2.4,
