@@ -27,7 +27,7 @@ def transcribe_audio(
     Determinism:
     - We use fixed decoding parameters.
     - We avoid temperature sampling.
-    - We disable word timestamps (segment granularity only).
+    - We enable word timestamps for phrase start-time localization.
     """
 
     model = WhisperModel(model_size_or_path, device=device, compute_type=compute_type)
