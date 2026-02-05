@@ -51,21 +51,42 @@ def transcribe_audio(
     )
 
     segments: List[Dict[str, Any]] = []
+    words: List[Dict[str, Any]] = []
+
+    word_cursor = 0
     for i, seg in enumerate(segments_iter):
         text = (seg.text or "").strip()
         if not text:
             continue
+
+        seg_words = []
+        if getattr(seg, "words", None) is not None:
+            for w in seg.words:
+                w_text = (getattr(w, "word", None) or getattr(w, "text", "") or "").strip()
+                if not w_text:
+                    continue
+                w_start = float(getattr(w, "start", seg.start))
+                w_end = float(getattr(w, "end", seg.end))
+                seg_words.append({"text": w_text, "start": w_start, "end": w_end})
+
+        seg_word_start = word_cursor
+        for w in seg_words:
+            words.append(w)
+            word_cursor += 1
+        seg_word_end = word_cursor
+
         segments.append(
             {
                 "id": i,
                 "start": float(seg.start),
                 "end": float(seg.end),
                 "text": text,
+                "word_start": seg_word_start,
+                "word_end": seg_word_end,
             }
         )
 
     duration = None
-    # newer versions expose duration, fallback if absent
     if hasattr(info, "duration"):
         duration = float(getattr(info, "duration"))
 
@@ -73,4 +94,5 @@ def transcribe_audio(
         "language": getattr(info, "language", None),
         "duration": duration,
         "segments": segments,
+        "words": words,
     }
