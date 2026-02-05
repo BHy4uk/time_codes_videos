@@ -88,18 +88,10 @@ def main() -> None:
         language=args.language,
     )
 
-    raw_segments = transcription.get("segments") or []
-    if args.no_sentence_refine:
-        segments_for_matching = raw_segments
-    else:
-        segments_for_matching = refine_segments_sentence_split(raw_segments)
-
-    # Write both raw and refined segments for transparency.
-    out_transcription = dict(transcription)
-    out_transcription["raw_segments"] = raw_segments
-    out_transcription["segments"] = segments_for_matching
-
-    segments_json_path.write_text(json.dumps(out_transcription, ensure_ascii=False, indent=2), encoding="utf-8")
+    # Persist raw transcription (mainly for debugging). In the new model,
+    # segments.json for the final pipeline will represent mapping phrases with
+    # resolved timestamps (written later).
+    segments_json_path.write_text(json.dumps(transcription, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # If user only wants transcription, stop here.
     if args.transcribe_only:
