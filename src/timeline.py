@@ -73,7 +73,7 @@ def build_timeline(
 
         next_start: Optional[float] = None
         if i + 1 < len(matches):
-            next_start = q(float(matches[i + 1]["segment_start"]))
+            next_start = q(float(matches[i + 1][start_key]))
 
         end = q(audio_dur) if next_start is None else next_start
         if end <= start:
