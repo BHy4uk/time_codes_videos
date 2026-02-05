@@ -15,11 +15,10 @@ import sys
 from pathlib import Path
 
 from src.config import load_config
-from src.match import match_segments_to_rules
+from src.phrase_align import resolve_phrase_start_times
 from src.render import render_video
 from src.timeline import build_timeline
 from src.transcribe import transcribe_audio
-from src.segment_refine import refine_segments_sentence_split
 
 
 def _check_binary(name: str) -> None:
