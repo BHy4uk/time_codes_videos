@@ -19,6 +19,7 @@ from src.match import match_segments_to_rules
 from src.render import render_video
 from src.timeline import build_timeline
 from src.transcribe import transcribe_audio
+from src.segment_refine import refine_segments_sentence_split
 
 
 def _check_binary(name: str) -> None:
@@ -59,6 +60,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--timeline-json", default=None, help="Optional override path for timeline.json")
     p.add_argument("--output-video", default=None, help="Optional override path for output.mp4")
 
+    p.add_argument(
+        "--no-sentence-refine",
+        action="store_true",
+        help="Disable sentence-splitting refinement (uses raw Whisper segments).",
+    )
+
     return p.parse_args()
 
 
@@ -85,7 +92,19 @@ def main() -> None:
         compute_type=args.compute_type,
         language=args.language,
     )
-    segments_json_path.write_text(json.dumps(transcription, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    raw_segments = transcription.get("segments") or []
+    if args.no_sentence_refine:
+        segments_for_matching = raw_segments
+    else:
+        segments_for_matching = refine_segments_sentence_split(raw_segments)
+
+    # Write both raw and refined segments for transparency.
+    out_transcription = dict(transcription)
+    out_transcription["raw_segments"] = raw_segments
+    out_transcription["segments"] = segments_for_matching
+
+    segments_json_path.write_text(json.dumps(out_transcription, ensure_ascii=False, indent=2), encoding="utf-8")
 
     # If user only wants transcription, stop here.
     if args.transcribe_only:
@@ -115,7 +134,7 @@ def main() -> None:
 
     # 3) Match phrases
     matches = match_segments_to_rules(
-        segments=transcription["segments"],
+        segments=segments_for_matching,
         rules=cfg.rules,
         similarity_threshold=cfg.matching.similarity_threshold,
     )
