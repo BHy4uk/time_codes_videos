@@ -29,6 +29,7 @@ def build_timeline(
     matches: List[Dict[str, Any]],
     audio_path: str,
     fps: int = 30,
+    matches_are_phrases: bool = False,
 ) -> Dict[str, Any]:
     """Create a non-overlapping, strictly chronological timeline.
 
