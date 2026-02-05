@@ -116,8 +116,9 @@ def build_timeline(
         if it["end"] > audio_dur:
             it["end"] = q(audio_dur)
 
-    # ensure strictly increasing starts
-    items.sort(key=lambda x: x["start"])
+    # ensure strictly increasing starts (do NOT reorder in phrase mode)
+    if not matches_are_phrases:
+        items.sort(key=lambda x: x["start"])
 
     return {
         "audio": {"path": str(Path(audio_path)), "duration": audio_dur},
