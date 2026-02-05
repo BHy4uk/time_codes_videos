@@ -12,7 +12,7 @@ def transcribe_audio(
     compute_type: str = "int8",
     language: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Transcribe audio with segment-level timestamps using faster-whisper.
+    """Transcribe audio with word-level timestamps using faster-whisper.
 
     Returns structured data:
       {
