@@ -55,18 +55,12 @@ python main.py `
   --transcribe-only
 ```
 
-By default, the tool will **refine** Whisper segments by splitting them into sentence-like chunks.
-This improves alignment when a configured phrase appears in the middle of a long Whisper segment.
+The tool does **not** split or rewrite your mapping phrases.
+`mapping.json` is the single source of truth for:
+- phrase order (image order)
+- phrase text used for alignment
 
-To disable refinement and use raw Whisper segments:
-
-```powershell
-python main.py `
-  --audio "./audio.mp3" `
-  --out "./out" `
-  --transcribe-only `
-  --no-sentence-refine
-```
+Transcription is used only to resolve **start timestamps** for each mapping phrase.
 
 #### 2) Full pipeline (segments → timeline → mp4)
 
