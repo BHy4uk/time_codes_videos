@@ -55,6 +55,19 @@ python main.py `
   --transcribe-only
 ```
 
+By default, the tool will **refine** Whisper segments by splitting them into sentence-like chunks.
+This improves alignment when a configured phrase appears in the middle of a long Whisper segment.
+
+To disable refinement and use raw Whisper segments:
+
+```powershell
+python main.py `
+  --audio "./audio.mp3" `
+  --out "./out" `
+  --transcribe-only `
+  --no-sentence-refine
+```
+
 #### 2) Full pipeline (segments → timeline → mp4)
 
 ```powershell
