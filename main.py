@@ -59,11 +59,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--timeline-json", default=None, help="Optional override path for timeline.json")
     p.add_argument("--output-video", default=None, help="Optional override path for output.mp4")
 
-    p.add_argument(
-        "--no-sentence-refine",
-        action="store_true",
-        help="Disable sentence-splitting refinement (uses raw Whisper segments).",
-    )
+    # Note: mapping.json is the single source of truth. We do NOT split/rewrite phrases.
 
     return p.parse_args()
 
