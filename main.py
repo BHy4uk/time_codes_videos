@@ -119,18 +119,25 @@ def main() -> None:
     # 2) Load config
     cfg = load_config(str(config_path))
 
-    # 3) Match phrases
-    matches = match_segments_to_rules(
-        segments=segments_for_matching,
+    # 3) Resolve mapping phrases to timestamps (mapping order is the video order)
+    resolved_phrases = resolve_phrase_start_times(
         rules=cfg.rules,
+        transcript=transcription,
         similarity_threshold=cfg.matching.similarity_threshold,
     )
 
-    # 4) Build timeline (non-overlapping, strictly chronological)
+    # segments.json now represents mapping phrases with resolved timestamps
+    segments_json_path.write_text(
+        json.dumps({"audio": str(audio_path), "phrases": resolved_phrases}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+    # 4) Build timeline strictly from phrase order
     timeline = build_timeline(
-        matches=matches,
+        matches=resolved_phrases,
         audio_path=str(audio_path),
         fps=args.fps,
+        matches_are_phrases=True,
     )
     timeline_json_path.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
 
