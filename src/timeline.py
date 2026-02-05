@@ -80,20 +80,36 @@ def build_timeline(
             # enforce non-overlap by ensuring at least 1 frame
             end = min(q(start + (1.0 / fps)), q(audio_dur))
 
-        items.append(
-            {
-                "start": start,
-                "end": end,
-                "image": m["rule"]["image"],
-                "effects": m["rule"].get("effects") or {},
-                "source": {
-                    "segment_id": m["segment_id"],
-                    "segment_text": m["segment_text"],
-                    "similarity": m["similarity"],
-                    "matched_text": m["rule"]["text"],
-                },
-            }
-        )
+        if matches_are_phrases:
+            items.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "image": m["image"],
+                    "effects": m.get("effects") or {},
+                    "source": {
+                        "phrase_index": m.get("index"),
+                        "phrase_text": m.get("text"),
+                        "similarity": m.get("similarity"),
+                        "matched_window_text": (m.get("match") or {}).get("matched_window_text"),
+                    },
+                }
+            )
+        else:
+            items.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "image": m["rule"]["image"],
+                    "effects": m["rule"].get("effects") or {},
+                    "source": {
+                        "segment_id": m["segment_id"],
+                        "segment_text": m["segment_text"],
+                        "similarity": m["similarity"],
+                        "matched_text": m["rule"]["text"],
+                    },
+                }
+            )
 
     # final clamp for safety
     for it in items:
