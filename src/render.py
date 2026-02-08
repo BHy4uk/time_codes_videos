@@ -69,12 +69,15 @@ def render_video(
         # Use an infinite looped still image as input.
         # Duration is enforced in the filtergraph via `trim=duration=...` to avoid
         # zoompan jitter/restarts that can happen with time-limited image inputs.
+        # Use forward slashes for FFmpeg on Windows to avoid any backslash
+        # escape/control-character edge cases (e.g., paths containing "\1").
+        img_arg = str(img).replace("\\", "/")
         input_args.extend(
             [
                 "-loop",
                 "1",
                 "-i",
-                str(img),
+                img_arg,
             ]
         )
 
@@ -120,7 +123,7 @@ def render_video(
         "error",
         *input_args,
         "-i",
-        str(audio_p),
+        str(audio_p).replace("\\", "/"),
         "-filter_complex",
         filter_complex,
         "-map",
@@ -136,7 +139,7 @@ def render_video(
         "-c:a",
         "aac",
         "-shortest",
-        str(out_p),
+        str(out_p).replace("\\", "/"),
     ]
 
     p = subprocess.run(cmd, capture_output=True, text=True)
