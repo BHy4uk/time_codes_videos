@@ -39,7 +39,8 @@ def load_config(config_path: str) -> AppConfig:
     if not p.exists():
         raise FileNotFoundError(f"Config file not found: {p}")
 
-    data: Dict[str, Any] = json.loads(p.read_text(encoding="utf-8"))
+    # Windows editors often save JSON with UTF-8 BOM. Accept both UTF-8 and UTF-8-SIG.
+    data: Dict[str, Any] = json.loads(p.read_text(encoding="utf-8-sig"))
 
     rules_raw = data.get("rules")
     if not isinstance(rules_raw, list) or not rules_raw:
