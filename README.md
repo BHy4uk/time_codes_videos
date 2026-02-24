@@ -43,6 +43,15 @@ ffprobe -version
 
 ## Run (Windows)
 
+### Stage 0: Setup environment variables
+
+Create a `.env` file in the project root:
+
+```env
+GOOGLE_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
+REALESRGAN_PATH=C:\AI\RealESRGAN\realesrgan-ncnn-vulkan.exe
+```
+
 ### Option A) Manual (recommended when setting up)
 
 #### 1) Transcribe only (generate `segments.json`)
