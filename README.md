@@ -6,11 +6,12 @@ Local, deterministic CLI tool to generate a video by synchronizing fullscreen im
 
 Deterministic pipeline:
 
-1. **Audio → transcription** (segment timestamps) using **faster-whisper**
-2. **Full-phrase fuzzy matching** against configured phrases (token_set_ratio + normalization)
-3. **Phrase alignment**: mapping.json defines phrase order; transcription is used only to find each phrase start timestamp.
-4. **Timeline generation**: image N shows from phrase N start until phrase N+1 start; last image until audio end.
-5. **FFmpeg rendering** to MP4 with the audio as background
+1. **Prompts → Gemini image generation** (optional stage)
+2. **Upscale** (optional stage via Real-ESRGAN)
+3. **Audio → transcription** (word timestamps) using **faster-whisper**
+4. **Phrase alignment**: mapping.json defines phrase order; transcription is used only to find each phrase start timestamp.
+5. **Timeline generation**: asset N shows from phrase N start until phrase N+1 start; last asset until audio end.
+6. **FFmpeg rendering** to MP4 with the audio as background
 
 ## Install (Windows)
 
