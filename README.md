@@ -146,6 +146,20 @@ Outputs:
 
 ## Config format
 
+### mapping.json schema (supports image OR video assets)
+
+Each rule defines:
+- `asset`: filename in your assets folder (e.g., `./img`)
+- `type`: `"image"` or `"video"`
+- `text`: phrase that marks the start of this asset
+- `effects`: optional visual effects applied after normalization
+
+Top-level `render` controls video-short behavior:
+
+```json
+"render": { "on_short_video": "freeze" }
+```
+
 See `example_config.json`:
 
 ```json
