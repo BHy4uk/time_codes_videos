@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from rapidfuzz import fuzz
 
-from .config import Rule
+from .config_schema import RuleV2 as Rule
 from .normalize import normalize_text
 
 
