@@ -52,7 +52,36 @@ GOOGLE_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
 REALESRGAN_PATH=C:\AI\RealESRGAN\realesrgan-ncnn-vulkan.exe
 ```
 
-### Option A) Manual (recommended when setting up)
+### Option A) Modular pipeline commands (recommended)
+
+#### 1) Generate images from prompts (Gemini)
+
+```powershell
+python main.py generate --prompts "./prompts" --count 3 --seed 42
+```
+
+Outputs:
+- `./generated` (raw generated images)
+- `./upscale_queue` (copies queued for upscaling)
+
+#### 2) Upscale images in queue (Real-ESRGAN)
+
+```powershell
+python main.py upscale --scale 4
+```
+
+Outputs:
+- `./img` (final upscaled images)
+
+#### 3) Render video from mapping.json (image + video assets)
+
+```powershell
+python main.py render --config "./config/mapping.json" --audio "./audio.mp3" --assets "./img" --out "./out"
+```
+
+---
+
+### Option B) Manual (legacy)
 
 #### 1) Transcribe only (generate `segments.json`)
 
