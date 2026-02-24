@@ -41,108 +41,94 @@ ffmpeg -version
 ffprobe -version
 ```
 
-## Run (Windows)
+## Run (Windows) — block-based execution
 
-### Stage 0: Setup environment variables
+This project is designed so that **each block folder is an independent production unit**.
+You work inside a specific block directory (current working directory), while calling `main.py` from the repository using its full path.
 
-Create a `.env` file in the project root:
+### Directory layout (example)
+
+Block folder:
+
+```
+D:\State_51\cases\case_007\block_00\
+  audio\
+    audio.mp3
+  prompts\
+  upscale_queue\
+  img\
+  config\
+    mapping.json
+  out\
+```
+
+Repository (tooling):
+
+```
+C:\Users\DZ\source\repos\videos_creations\time_codes_videos\
+  main.py
+  src\...
+  requirements.txt
+  .env
+```
+
+### Environment variables (.env)
+
+The `.env` file stays in the **repository root** (NOT inside blocks):
+
+`C:\Users\DZ\source\repos\videos_creations\time_codes_videos\.env`
+
+It must contain:
 
 ```env
-GOOGLE_API_KEY=YOUR_GOOGLE_AI_STUDIO_KEY
+GOOGLE_API_KEY=...
 REALESRGAN_PATH=C:\AI\RealESRGAN\realesrgan-ncnn-vulkan.exe
 ```
 
-### Option A) Modular pipeline commands (recommended)
+### Important clarifications
 
-#### 1) Generate images from prompts (Gemini)
-
-```powershell
-python main.py generate --prompts "./prompts" --count 3 --seed 42
-```
-
-Outputs:
-- `./generated` (raw generated images)
-- `./upscale_queue` (copies queued for upscaling)
-
-#### 2) Upscale images in queue (Real-ESRGAN)
-
-```powershell
-python main.py upscale --scale 4
-```
-
-Outputs:
-- `./img` (final upscaled images)
-
-#### 3) Render video from mapping.json (image + video assets)
-
-```powershell
-python main.py render --config "./config/mapping.json" --audio "./audio.mp3" --assets "./img" --out "./out"
-```
+- **All relative paths** like `./prompts`, `./img`, `./config`, `./out` are resolved from your **current working directory** (the block folder).
+- `main.py` is called using its **full path** from the repository.
+- There is **no base-dir parameter**.
+- The pipeline will fail fast if dependencies are missing (Gemini key, Real-ESRGAN, FFmpeg).
 
 ---
 
-### Option B) Manual (legacy)
+## Execution flow
 
-#### 1) Transcribe only (generate `segments.json`)
-
-Use this first if you haven’t built `mapping.json` yet:
+### Step 1 — Navigate to the block directory
 
 ```powershell
-python main.py `
-  --audio "./audio.mp3" `
-  --out "./out" `
-  --transcribe-only
+cd D:\State_51\cases\case_007\block_00
 ```
 
-The tool does **not** split or rewrite your mapping phrases.
-`mapping.json` is the single source of truth for:
-- phrase order (image order)
-- phrase text used for alignment
-
-Transcription is used only to resolve **start timestamps** for each mapping phrase.
-
-#### 2) Full pipeline (segments → timeline → mp4)
+### Step 2 — Generate images (Gemini)
 
 ```powershell
-python main.py `
-  --audio "./audio.mp3" `
-  --images "./images" `
-  --config "./mapping.json" `
-  --out "./out"
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py generate --prompts "./prompts" --count 1 --seed 42
 ```
 
-### Option B) One-command helper for your folder convention (case/block)
+Outputs (in the block folder):
+- `./generated`
+- `./upscale_queue`
 
-If your files are organized like:
-
-- `D:\State_51\cases\case_002\block_00\audio\audio.mp3`
-- `D:\State_51\cases\case_002\block_00\images\...`
-- `D:\State_51\cases\case_002\block_00\config\mapping.json`
-- `D:\State_51\cases\case_002\block_00\out\...`
-
-You can run the interactive helper script:
+### Step 3 — Upscale (Real-ESRGAN)
 
 ```powershell
-python .\run_case.py
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py upscale --scale 4
 ```
-
-It will:
-- ask for `case_XXX` and `block_YY`
-- create `out/` and `config/` folders if missing
-- create a template `config/mapping.json` if missing
-- run `--transcribe-only`
-- ask for confirmation before running the full render
-
-If the output video ends early (common on Windows with FFmpeg concat + still images),
-this project uses a robust rendering approach (`-loop 1` inputs + `concat` filter) to
-ensure video duration matches the audio/timeline.
 
 Outputs:
+- `./img`
 
-- `out/segments.json` – transcription segments with start/end timestamps
-- `out/timeline.json` – final image timeline
-- `out/output.mp4` – rendered video
-- `out/render_manifest.json` – ffmpeg command + embedded timeline (for reproducibility)
+### Step 4 — Render
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
+```
+
+Output:
+- `./out/output.mp4`
 
 ## Config format
 
