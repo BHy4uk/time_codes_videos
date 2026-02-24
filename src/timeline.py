@@ -85,7 +85,8 @@ def build_timeline(
                 {
                     "start": start,
                     "end": end,
-                    "image": m["image"],
+                    "asset": m.get("asset") or m.get("image"),
+                    "type": m.get("type") or "image",
                     "effects": m.get("effects") or {},
                     "source": {
                         "phrase_index": m.get("index"),
