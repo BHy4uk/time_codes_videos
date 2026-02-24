@@ -166,7 +166,8 @@ See `example_config.json`:
 {
   "rules": [
     {
-      "image": "01.png",
+      "asset": "01.png",
+      "type": "image",
       "text": "Full sentence or paragraph ...",
       "effects": {
         "zoom": {"type": "in", "scale": 1.1, "duration": 4},
@@ -177,11 +178,19 @@ See `example_config.json`:
           "target": { "x": 1200, "y": 800, "width": 600, "height": 500 }
         }
       }
+    },
+    {
+      "asset": "intro.mp4",
+      "type": "video",
+      "text": "This is where the intro begins."
     }
   ],
   "matching": {
     "mode": "full_phrase",
     "similarity_threshold": 85
+  },
+  "render": {
+    "on_short_video": "freeze"
   }
 }
 ```
