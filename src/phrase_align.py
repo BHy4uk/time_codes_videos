@@ -176,6 +176,7 @@ def resolve_phrase_start_times(
             {
                 "index": idx,
                 **asdict(rule),
+                "image": rule.asset,
                 "start": float(best["start"]),
                 "similarity": {
                     "token_set_ratio": int(best["token_set_ratio"]),
