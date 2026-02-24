@@ -1,24 +1,61 @@
 #!/usr/bin/env python3
-"""CLI entry point.
+"""Deterministic media production pipeline (CLI).
 
-Deterministic pipeline:
-Audio -> timestamped transcription -> full-phrase fuzzy matching -> timeline -> rendered MP4
+Pipeline stages:
 
-Example:
-  python main.py --audio audio.mp3 --images ./images --config mapping.json --out ./out
+prompts
+  ↓
+Gemini image generation
+  ↓
+generated
+  ↓
+upscale_queue
+  ↓
+Real-ESRGAN
+  ↓
+img
+  ↓
+mapping.json
+  ↓
+phrase alignment (timestamps)
+  ↓
+timeline
+  ↓
+render
+
+Key principles:
+- mapping.json is the single source of truth for ordering and phrase triggers.
+- No auto-reordering of mapping rules.
+- No heuristic timing redistribution.
+- Fail fast on missing dependencies.
+- Log each stage outputs.
+
+Commands:
+  python main.py generate --prompts ./prompts --count 3 --seed 42
+  python main.py upscale --scale 4
+  python main.py render --config ./config/mapping.json --audio ./audio.mp3
+
+Environment:
+- GOOGLE_API_KEY must be set for `generate`.
+- FFmpeg/FFprobe must be installed for `render`.
+- Real-ESRGAN executable must be installed for `upscale`.
 """
 
+from __future__ import annotations
+
 import argparse
-import json
 import shutil
 import sys
 from pathlib import Path
 
-from src.config import load_config
+from src.config_loader import load_mapping_config
+from src.env import get_env_path, load_env
+from src.gemini_generation import generate_images_from_prompts
 from src.phrase_align import resolve_phrase_start_times
 from src.render import render_video
 from src.timeline import build_timeline
 from src.transcribe import transcribe_audio
+from src.upscale import upscale_queue
 
 
 def _check_binary(name: str) -> None:
@@ -31,56 +68,73 @@ def _check_binary(name: str) -> None:
         )
 
 
-def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Generate a video by syncing images to spoken phrases.")
+def _cmd_generate(args: argparse.Namespace) -> None:
+    out_generated = Path(args.generated)
+    out_queue = Path(args.upscale_queue)
+    out_generated.mkdir(parents=True, exist_ok=True)
+    out_queue.mkdir(parents=True, exist_ok=True)
 
-    p.add_argument("--audio", required=True, help="Path to audio file (.mp3 or .wav)")
-    # In full pipeline mode these are required, but for --transcribe-only they are optional.
-    p.add_argument("--images", required=False, help="Folder containing images referenced by config")
-    p.add_argument("--config", required=False, help="JSON config mapping full phrases to images")
-    p.add_argument("--out", default="./out", help="Output folder")
-
-    p.add_argument(
-        "--transcribe-only",
-        action="store_true",
-        help="Only produce segments.json (no config/images/ffmpeg required).",
+    results = generate_images_from_prompts(
+        prompts_dir=args.prompts,
+        out_dir=str(out_generated),
+        count=args.count,
+        model=args.model,
+        seed=args.seed,
+        reference_image=args.reference,
     )
 
-    p.add_argument("--model", default="base", help="faster-whisper model size or path (default: base)")
-    p.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
-    p.add_argument("--compute-type", default="int8", help="Compute type for faster-whisper (default: int8)")
-    p.add_argument("--language", default=None, help="Force language code (e.g., en). Default: auto-detect")
+    # Copy generated images to upscale_queue (preserve names, no overwrite)
+    copied = []
+    for r in results:
+        for f in r.output_files:
+            src = Path(f)
+            dst = out_queue / src.name
+            if dst.exists():
+                raise SystemExit(f"Refusing to overwrite in upscale_queue: {dst}")
+            dst.write_bytes(src.read_bytes())
+            copied.append(str(dst))
 
-    p.add_argument("--fps", type=int, default=30, help="Video FPS (default: 30)")
-    p.add_argument("--width", type=int, default=1920, help="Video width (default: 1920)")
-    p.add_argument("--height", type=int, default=1080, help="Video height (default: 1080)")
-
-    p.add_argument("--segments-json", default=None, help="Optional override path for segments.json")
-    p.add_argument("--timeline-json", default=None, help="Optional override path for timeline.json")
-    p.add_argument("--output-video", default=None, help="Optional override path for output.mp4")
-
-    # Note: mapping.json is the single source of truth. We do NOT split/rewrite phrases.
-
-    return p.parse_args()
+    print("Done (generate)")
+    print(f"- Generated: {out_generated}")
+    print(f"- Enqueued for upscale: {out_queue} ({len(copied)} files)")
 
 
-def main() -> None:
-    args = parse_args()
+def _cmd_upscale(args: argparse.Namespace) -> None:
+    # Resolve Real-ESRGAN executable path (optional env override)
+    realesrgan_arg = args.realesrgan
+    if not realesrgan_arg:
+        env_p = get_env_path("REALESRGAN_PATH")
+        if env_p:
+            realesrgan_arg = str(env_p)
+
+    outputs = upscale_queue(
+        upscale_queue_dir=args.upscale_queue,
+        upscaled_dir=args.upscaled,
+        img_dir=args.img,
+        scale=args.scale,
+        realesrgan_exe=realesrgan_arg,
+    )
+
+    print("Done (upscale)")
+    print(f"- Processed: {len(outputs)}")
+    print(f"- Output img/: {args.img}")
+
+
+def _cmd_render(args: argparse.Namespace) -> None:
+    _check_binary("ffmpeg")
+    _check_binary("ffprobe")
 
     audio_path = Path(args.audio)
-    out_dir = Path(args.out)
-
     if not audio_path.exists():
         raise SystemExit(f"Audio file not found: {audio_path}")
 
+    cfg = load_mapping_config(args.config)
+
+    out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    segments_json_path = Path(args.segments_json) if args.segments_json else (out_dir / "segments.json")
-    timeline_json_path = Path(args.timeline_json) if args.timeline_json else (out_dir / "timeline.json")
-    output_video_path = Path(args.output_video) if args.output_video else (out_dir / "output.mp4")
-
-    # 1) Transcribe (always)
-    transcription = transcribe_audio(
+    # 1) Transcribe with word timestamps
+    transcript = transcribe_audio(
         audio_path=str(audio_path),
         model_size_or_path=args.model,
         device=args.device,
@@ -88,74 +142,103 @@ def main() -> None:
         language=args.language,
     )
 
-    # Persist raw transcription (mainly for debugging). In the new model,
-    # segments.json for the final pipeline will represent mapping phrases with
-    # resolved timestamps (written later).
-    segments_json_path.write_text(json.dumps(transcription, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    # If user only wants transcription, stop here.
-    if args.transcribe_only:
-        print("Done (transcribe-only)")
-        print(f"- Segments: {segments_json_path}")
-        return
-
-    # For full pipeline we need config/images and ffmpeg.
-    if not args.images:
-        raise SystemExit("--images is required unless --transcribe-only is set")
-    if not args.config:
-        raise SystemExit("--config is required unless --transcribe-only is set")
-
-    images_dir = Path(args.images)
-    config_path = Path(args.config)
-
-    if not images_dir.exists() or not images_dir.is_dir():
-        raise SystemExit(f"Images folder not found or not a directory: {images_dir}")
-    if not config_path.exists():
-        raise SystemExit(f"Config file not found: {config_path}")
-
-    _check_binary("ffmpeg")
-    _check_binary("ffprobe")
-
-    # 2) Load config
-    cfg = load_config(str(config_path))
-
-    # 3) Resolve mapping phrases to timestamps (mapping order is the video order)
+    # 2) Resolve phrase start times strictly in mapping order
     resolved_phrases = resolve_phrase_start_times(
         rules=cfg.rules,
-        transcript=transcription,
+        transcript=transcript,
         similarity_threshold=cfg.matching.similarity_threshold,
     )
 
-    # segments.json now represents mapping phrases with resolved timestamps
-    segments_json_path.write_text(
-        json.dumps({"audio": str(audio_path), "phrases": resolved_phrases}, ensure_ascii=False, indent=2),
+    # segments.json in the new model = resolved mapping phrases
+    (out_dir / "segments.json").write_text(
+        __import__("json").dumps({"audio": str(audio_path), "phrases": resolved_phrases}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    # 4) Build timeline strictly from phrase order
+    # 3) Build timeline strictly from phrase order
     timeline = build_timeline(
         matches=resolved_phrases,
         audio_path=str(audio_path),
         fps=args.fps,
         matches_are_phrases=True,
     )
-    timeline_json_path.write_text(json.dumps(timeline, ensure_ascii=False, indent=2), encoding="utf-8")
+    (out_dir / "timeline.json").write_text(
+        __import__("json").dumps(timeline, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
-    # 5) Render
+    # 4) Render (supports image + video)
     render_video(
         timeline=timeline,
-        images_dir=str(images_dir),
+        assets_dir=args.assets,
         audio_path=str(audio_path),
-        out_path=str(output_video_path),
+        out_path=str(out_dir / "output.mp4"),
         width=args.width,
         height=args.height,
         fps=args.fps,
+        on_short_video=cfg.render.on_short_video,
     )
 
-    print("Done")
-    print(f"- Segments: {segments_json_path}")
-    print(f"- Timeline: {timeline_json_path}")
-    print(f"- Video:    {output_video_path}")
+    print("Done (render)")
+    print(f"- Out: {out_dir}")
+
+
+def parse_args() -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Deterministic media production pipeline")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    # generate
+    g = sub.add_parser("generate", help="Generate images from prompts using Gemini")
+    g.add_argument("--prompts", default="./prompts", help="Folder containing .txt prompt files")
+    g.add_argument("--generated", default="./generated", help="Output folder for raw generated images")
+    g.add_argument("--upscale-queue", default="./upscale_queue", help="Folder to enqueue images for upscaling")
+    g.add_argument("--count", type=int, required=True, help="Number of images per prompt")
+    g.add_argument("--seed", type=int, default=None, help="Optional seed (deterministic if supported by model)")
+    g.add_argument("--reference", default=None, help="Optional reference image path")
+    g.add_argument(
+        "--model",
+        default="gemini-2.5-flash-image",
+        help="Gemini image model id (AI Studio). Example: gemini-2.5-flash-image",
+    )
+    g.set_defaults(func=_cmd_generate)
+
+    # upscale
+    u = sub.add_parser("upscale", help="Upscale all images in upscale_queue using Real-ESRGAN")
+    u.add_argument("--upscale-queue", default="./upscale_queue", help="Input folder")
+    u.add_argument("--upscaled", default="./upscaled", help="Intermediate output folder")
+    u.add_argument("--img", default="./img", help="Final images folder")
+    u.add_argument("--scale", type=int, required=True, choices=[2, 4], help="Upscale factor (2 or 4)")
+    u.add_argument(
+        "--realesrgan",
+        default=None,
+        help="Optional path to realesrgan-ncnn-vulkan.exe (else uses REALESRGAN_PATH env or default path)",
+    )
+    u.set_defaults(func=_cmd_upscale)
+
+    # render
+    r = sub.add_parser("render", help="Render final video from mapping.json + audio")
+    r.add_argument("--config", required=True, help="Path to mapping.json")
+    r.add_argument("--audio", required=True, help="Path to audio file (.mp3 or .wav)")
+    r.add_argument("--assets", default="./img", help="Assets folder containing images/videos referenced in mapping")
+    r.add_argument("--out", default="./out", help="Output folder")
+
+    r.add_argument("--model", default="base", help="faster-whisper model size or path (default: base)")
+    r.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
+    r.add_argument("--compute-type", default="int8", help="Compute type for faster-whisper (default: int8)")
+    r.add_argument("--language", default=None, help="Force language code (e.g., en). Default: auto-detect")
+
+    r.add_argument("--fps", type=int, default=30, help="Video FPS (default: 30)")
+    r.add_argument("--width", type=int, default=1920, help="Video width (default: 1920)")
+    r.add_argument("--height", type=int, default=1080, help="Video height (default: 1080)")
+    r.set_defaults(func=_cmd_render)
+
+    return p.parse_args()
+
+
+def main() -> None:
+    load_env()
+    args = parse_args()
+    args.func(args)
 
 
 if __name__ == "__main__":
