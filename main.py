@@ -177,6 +177,8 @@ def _cmd_render(args: argparse.Namespace) -> None:
         height=args.height,
         fps=args.fps,
         on_short_video=cfg.render.on_short_video,
+        debug=args.debug_render,
+        work_dir=str(out_dir / "_render_work"),
     )
 
     print("Done (render)")
