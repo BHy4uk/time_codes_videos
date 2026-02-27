@@ -124,7 +124,7 @@ def build_timeline(
     # final clamp for safety
     for it in items:
         if it["end"] > audio_dur:
-            it["end"] = q(audio_dur)
+            it["end"] = q_end(audio_dur)
 
     # ensure strictly increasing starts (do NOT reorder in phrase mode)
     if not matches_are_phrases:
