@@ -207,6 +207,7 @@ def resolve_phrase_start_times(
                     "matched_window_text": best["matched_window_text"],
                     "word_index": int(best["word_index"]),
                     "word_len": int(best["word_len"]),
+                    "anchored_to": best.get("anchored_to", "word_start"),
                 },
             }
         )
