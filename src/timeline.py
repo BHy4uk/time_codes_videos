@@ -47,11 +47,19 @@ def build_timeline(
 
     audio_dur = _get_audio_duration_seconds(audio_path)
 
-    def q(t: float) -> float:
-        # quantize to nearest frame boundary for stable results
+    def q_start(t: float) -> float:
+        """Quantize a start timestamp to a frame boundary.
+
+        We use CEIL so visuals never appear *before* the intended timestamp.
+        """
+
         frame = 1.0 / float(fps)
-        # round to nearest frame
-        return round(t / frame) * frame
+        return math.ceil(t / frame) * frame
+
+    def q_end(t: float) -> float:
+        # end is also quantized to a frame boundary
+        frame = 1.0 / float(fps)
+        return math.ceil(t / frame) * frame
 
     items: List[Dict[str, Any]] = []
 
