@@ -230,6 +230,11 @@ def parse_args() -> argparse.Namespace:
     r.add_argument("--fps", type=int, default=30, help="Video FPS (default: 30)")
     r.add_argument("--width", type=int, default=1920, help="Video width (default: 1920)")
     r.add_argument("--height", type=int, default=1080, help="Video height (default: 1080)")
+    r.add_argument(
+        "--debug-render",
+        action="store_true",
+        help="Verbose render logs (scene durations, frame counts, ffmpeg commands, ffprobe durations).",
+    )
     r.set_defaults(func=_cmd_render)
 
     return p.parse_args()
