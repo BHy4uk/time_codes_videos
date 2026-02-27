@@ -71,10 +71,10 @@ def build_timeline(
             "items": items,
         }
 
-    # Order is significant. In the new model `matches` is already in mapping.json order.
+    # Order is significant. In phrase mode `matches` is already in mapping.json order.
     for i, m in enumerate(matches):
         start_key = "start" if matches_are_phrases else "segment_start"
-        start = q(float(m[start_key]))
+        start = q_start(float(m[start_key]))
         if start < 0:
             start = 0.0
         if start > audio_dur:
