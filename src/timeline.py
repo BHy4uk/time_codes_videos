@@ -86,7 +86,7 @@ def build_timeline(
                     "start": start,
                     "end": end,
                     "asset": m.get("asset") or m.get("image"),
-                    "type": m.get("type") or "image",
+                    "type": m.get("type") or ("video" if str(m.get("asset") or "").lower().endswith(".mp4") else "image"),
                     "effects": m.get("effects") or {},
                     "source": {
                         "phrase_index": m.get("index"),
