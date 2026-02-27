@@ -163,6 +163,27 @@ def resolve_phrase_start_times(
             threshold=similarity_threshold,
         )
 
+        # Deterministic anchoring fix for the FIRST phrase.
+        # If the best fuzzy window starts inside the first segment, but the segment
+        # itself appears to contain the beginning of the mapping phrase, we anchor
+        # to segment_start instead of word-level offset.
+        if idx == 0 and best is not None and best_seg is not None:
+            seg_text_norm = best_seg.get("text_norm", "")
+            # Condition A: window start is not at segment start
+            window_inside_segment = int(best["word_index"]) > int(best_seg.get("word_start", 0))
+            # Condition B: segment contains the beginning of the mapping phrase
+            phrase_head = " ".join(phrase_norm.split()[: max(1, min(6, len(phrase_norm.split())) )])
+            segment_contains_phrase_head = phrase_head and (phrase_head in seg_text_norm)
+            # Condition C: guard against token_set_ratio passing while ratio is low
+            guard_low_ratio = int(best["token_set_ratio"]) >= similarity_threshold and int(best["ratio"]) < 90
+
+            if (window_inside_segment and segment_contains_phrase_head) or guard_low_ratio:
+                # Anchor to segment start timestamp (not word timestamp)
+                best["start"] = float(transcript.get("segments", [])[int(best_seg["id"])].get("start", best["start"]))
+                best["anchored_to"] = "segment_start"
+            else:
+                best["anchored_to"] = "word_start"
+
         if best is None:
             raise ValueError(
                 f"Could not resolve phrase {idx} to a timestamp above threshold={similarity_threshold}. "
