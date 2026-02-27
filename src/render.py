@@ -329,8 +329,12 @@ def render_video(
     # Concat demuxer file
     concat_file = work_p / "concat.txt"
     concat_lines = []
+    def _concat_escape(p: Path) -> str:
+        # concat demuxer uses single quotes; escape single quote by closing/opening with \'
+        return str(p).replace("\\", "/").replace("'", "'\\\\''")
+
     for sp in scene_paths:
-        concat_lines.append(f"file '{str(sp).replace('\\', '/').replace("'", "'\\''")}'")
+        concat_lines.append(f"file '{_concat_escape(sp)}'")
     concat_file.write_text("\n".join(concat_lines) + "\n", encoding="utf-8")
 
     video_only = work_p / "video_concat.mp4"
