@@ -82,12 +82,12 @@ def build_timeline(
 
         next_start: Optional[float] = None
         if i + 1 < len(matches):
-            next_start = q(float(matches[i + 1][start_key]))
+            next_start = q_start(float(matches[i + 1][start_key]))
 
-        end = q(audio_dur) if next_start is None else next_start
+        end = q_end(audio_dur) if next_start is None else next_start
         if end <= start:
             # enforce non-overlap by ensuring at least 1 frame
-            end = min(q(start + (1.0 / fps)), q(audio_dur))
+            end = min(q_end(start + (1.0 / fps)), q_end(audio_dur))
 
         if matches_are_phrases:
             items.append(
