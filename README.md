@@ -127,8 +127,15 @@ Outputs:
 python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
 ```
 
+Debug mode (prints ffmpeg commands, per-scene durations/frame counts, and ffprobe durations):
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --debug-render
+```
+
 Output:
 - `./out/output.mp4`
+- `./out/render_manifest.json`
 
 ## Config format
 
