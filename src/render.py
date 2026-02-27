@@ -330,8 +330,10 @@ def render_video(
     concat_file = work_p / "concat.txt"
     concat_lines = []
     def _concat_escape(p: Path) -> str:
-        # concat demuxer uses single quotes; escape single quote by closing/opening with \'
-        return str(p).replace("\\", "/").replace("'", "'\\\\''")
+        # Use absolute paths to avoid concat demuxer relative-path resolution issues.
+        # On Windows, also normalize backslashes to forward slashes.
+        abs_p = p.resolve()
+        return str(abs_p).replace("\\", "/").replace("'", "'\\\\''")
 
     for sp in scene_paths:
         concat_lines.append(f"file '{_concat_escape(sp)}'")
