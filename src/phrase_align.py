@@ -176,8 +176,14 @@ def resolve_phrase_start_times(
             # Condition A: window start is not at segment start
             window_inside_segment = int(best["word_index"]) > int(best_seg.get("word_start", 0))
             # Condition B: segment contains the beginning of the mapping phrase
-            phrase_head = " ".join(phrase_norm.split()[: max(1, min(6, len(phrase_norm.split())) )])
-            segment_contains_phrase_head = phrase_head and (phrase_head in seg_text_norm)
+            # Use a more robust phrase-beginning check:
+            # - Take the first N words
+            # - Also allow fuzzy match of that prefix against the segment
+            head_n = max(2, min(8, len(phrase_norm.split())))
+            phrase_head = " ".join(phrase_norm.split()[:head_n])
+            segment_contains_phrase_head = bool(phrase_head) and (
+                phrase_head in seg_text_norm or fuzz.partial_ratio(phrase_head, seg_text_norm) >= 90
+            )
             # Condition C: guard against token_set_ratio passing while ratio is low
             guard_low_ratio = int(best["token_set_ratio"]) >= similarity_threshold and int(best["ratio"]) < 90
 
