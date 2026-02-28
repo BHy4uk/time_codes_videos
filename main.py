@@ -140,6 +140,8 @@ def _cmd_render(args: argparse.Namespace) -> None:
         device=args.device,
         compute_type=args.compute_type,
         language=args.language,
+        vad_filter=args.vad_filter,
+        vad_min_silence_ms=args.vad_min_silence_ms,
     )
 
     # 2) Resolve phrase start times strictly in mapping order
