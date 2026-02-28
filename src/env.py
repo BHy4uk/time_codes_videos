@@ -3,14 +3,18 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:
+    load_dotenv = None
 
 
 def load_env() -> None:
     """Load environment variables from a local .env if present."""
 
     # Load from current working directory .env first
-    load_dotenv(override=False)
+    if load_dotenv is not None:
+        load_dotenv(override=False)
 
 
 def require_env(name: str) -> str:
