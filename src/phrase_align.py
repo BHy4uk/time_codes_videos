@@ -110,11 +110,15 @@ def resolve_phrase_start_times(
     segments = transcript.get("segments") or []
 
     # For speed: pre-normalize segments (used only as a coarse locator)
+    # IMPORTANT: do NOT rely on Whisper segment `id` as a list index because we may skip empty segments.
     seg_norm = []
-    for s in segments:
+    for seg_i, s in enumerate(segments):
         seg_norm.append(
             {
+                "seg_index": seg_i,
                 "id": int(s.get("id", 0)),
+                "start": float(s.get("start", 0.0)),
+                "end": float(s.get("end", 0.0)),
                 "word_start": int(s.get("word_start", 0)),
                 "word_end": int(s.get("word_end", 0)),
                 "text_norm": normalize_text(str(s.get("text", ""))),
@@ -172,14 +176,20 @@ def resolve_phrase_start_times(
             # Condition A: window start is not at segment start
             window_inside_segment = int(best["word_index"]) > int(best_seg.get("word_start", 0))
             # Condition B: segment contains the beginning of the mapping phrase
-            phrase_head = " ".join(phrase_norm.split()[: max(1, min(6, len(phrase_norm.split())) )])
-            segment_contains_phrase_head = phrase_head and (phrase_head in seg_text_norm)
+            # Use a more robust phrase-beginning check:
+            # - Take the first N words
+            # - Also allow fuzzy match of that prefix against the segment
+            head_n = max(2, min(8, len(phrase_norm.split())))
+            phrase_head = " ".join(phrase_norm.split()[:head_n])
+            segment_contains_phrase_head = bool(phrase_head) and (
+                phrase_head in seg_text_norm or fuzz.partial_ratio(phrase_head, seg_text_norm) >= 90
+            )
             # Condition C: guard against token_set_ratio passing while ratio is low
             guard_low_ratio = int(best["token_set_ratio"]) >= similarity_threshold and int(best["ratio"]) < 90
 
             if (window_inside_segment and segment_contains_phrase_head) or guard_low_ratio:
                 # Anchor to segment start timestamp (not word timestamp)
-                best["start"] = float(transcript.get("segments", [])[int(best_seg["id"])].get("start", best["start"]))
+                best["start"] = float(best_seg.get("start", best["start"]))
                 best["anchored_to"] = "segment_start"
             else:
                 best["anchored_to"] = "word_start"
