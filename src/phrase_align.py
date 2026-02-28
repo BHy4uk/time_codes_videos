@@ -183,7 +183,7 @@ def resolve_phrase_start_times(
 
             if (window_inside_segment and segment_contains_phrase_head) or guard_low_ratio:
                 # Anchor to segment start timestamp (not word timestamp)
-                best["start"] = float(transcript.get("segments", [])[int(best_seg["id"])].get("start", best["start"]))
+                best["start"] = float(best_seg.get("start", best["start"]))
                 best["anchored_to"] = "segment_start"
             else:
                 best["anchored_to"] = "word_start"
