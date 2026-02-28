@@ -110,11 +110,15 @@ def resolve_phrase_start_times(
     segments = transcript.get("segments") or []
 
     # For speed: pre-normalize segments (used only as a coarse locator)
+    # IMPORTANT: do NOT rely on Whisper segment `id` as a list index because we may skip empty segments.
     seg_norm = []
-    for s in segments:
+    for seg_i, s in enumerate(segments):
         seg_norm.append(
             {
+                "seg_index": seg_i,
                 "id": int(s.get("id", 0)),
+                "start": float(s.get("start", 0.0)),
+                "end": float(s.get("end", 0.0)),
                 "word_start": int(s.get("word_start", 0)),
                 "word_end": int(s.get("word_end", 0)),
                 "text_norm": normalize_text(str(s.get("text", ""))),
