@@ -127,6 +127,13 @@ Outputs:
 python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
 ```
 
+If your first scene starts late, it usually means transcription timestamps start after an initial cut.
+By default we keep **VAD OFF** for strict alignment. You can explicitly enable VAD (not recommended for strict start timing) with:
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --vad-filter
+```
+
 Debug mode (prints ffmpeg commands, per-scene durations/frame counts, and ffprobe durations):
 
 ```powershell
