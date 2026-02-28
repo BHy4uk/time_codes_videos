@@ -11,6 +11,8 @@ def transcribe_audio(
     device: str = "cpu",
     compute_type: str = "int8",
     language: Optional[str] = None,
+    vad_filter: bool = False,
+    vad_min_silence_ms: int = 500,
 ) -> Dict[str, Any]:
     """Transcribe audio with word-level timestamps using faster-whisper.
 
@@ -40,8 +42,10 @@ def transcribe_audio(
         beam_size=5,
         best_of=5,
         temperature=0.0,
-        vad_filter=True,
-        vad_parameters={"min_silence_duration_ms": 500},
+        # IMPORTANT FOR TIMING: VAD can suppress early speech and shift the first
+        # detected timestamps later. For strict phrase alignment, we default VAD OFF.
+        vad_filter=vad_filter,
+        vad_parameters={"min_silence_duration_ms": int(vad_min_silence_ms)},
         word_timestamps=True,
         condition_on_previous_text=False,
         initial_prompt=None,
