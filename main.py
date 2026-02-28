@@ -50,12 +50,6 @@ from pathlib import Path
 
 from src.config_loader import load_mapping_config
 from src.env import get_env_path, load_env
-from src.gemini_generation import generate_images_from_prompts
-from src.phrase_align import resolve_phrase_start_times
-from src.render import render_video
-from src.timeline import build_timeline
-from src.transcribe import transcribe_audio
-from src.upscale import upscale_queue
 
 
 def _check_binary(name: str) -> None:
@@ -69,6 +63,17 @@ def _check_binary(name: str) -> None:
 
 
 def _cmd_generate(args: argparse.Namespace) -> None:
+    try:
+        from src.gemini_generation import generate_images_from_prompts
+    except ModuleNotFoundError as e:
+        if e.name in {"google", "google.genai"}:
+            raise SystemExit(
+                "Missing optional dependency for `generate`: google-genai\n"
+                "Install it in your environment and retry:\n"
+                "  pip install google-genai"
+            ) from e
+        raise
+
     out_generated = Path(args.generated)
     out_queue = Path(args.upscale_queue)
     out_generated.mkdir(parents=True, exist_ok=True)
@@ -100,6 +105,8 @@ def _cmd_generate(args: argparse.Namespace) -> None:
 
 
 def _cmd_upscale(args: argparse.Namespace) -> None:
+    from src.upscale import upscale_queue
+
     # Resolve Real-ESRGAN executable path (optional env override)
     realesrgan_arg = args.realesrgan
     if not realesrgan_arg:
@@ -121,6 +128,19 @@ def _cmd_upscale(args: argparse.Namespace) -> None:
 
 
 def _cmd_render(args: argparse.Namespace) -> None:
+    try:
+        from src.phrase_align import resolve_phrase_start_times
+        from src.render import render_video
+        from src.timeline import build_timeline
+        from src.transcribe import transcribe_audio
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            "Missing Python dependency for `render`: "
+            f"{e.name}\n"
+            "Install render dependencies in your active environment and retry:\n"
+            "  pip install rapidfuzz faster-whisper pillow"
+        ) from e
+
     _check_binary("ffmpeg")
     _check_binary("ffprobe")
 
