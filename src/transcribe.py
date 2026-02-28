@@ -16,6 +16,9 @@ def transcribe_audio(
 ) -> Dict[str, Any]:
     """Transcribe audio with word-level timestamps using faster-whisper.
 
+    IMPORTANT: For strict timing alignment, VAD is disabled by default because
+    it can suppress early speech and shift the first segment/word timestamps later.
+
     Returns structured data:
       {
         "language": "en",
