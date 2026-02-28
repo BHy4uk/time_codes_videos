@@ -160,6 +160,8 @@ def _cmd_render(args: argparse.Namespace) -> None:
         device=args.device,
         compute_type=args.compute_type,
         language=args.language,
+        vad_filter=args.vad_filter,
+        vad_min_silence_ms=args.vad_min_silence_ms,
     )
 
     # 2) Resolve phrase start times strictly in mapping order
@@ -248,6 +250,19 @@ def parse_args() -> argparse.Namespace:
     r.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
     r.add_argument("--compute-type", default="int8", help="Compute type for faster-whisper (default: int8)")
     r.add_argument("--language", default=None, help="Force language code (e.g., en). Default: auto-detect")
+
+    # Timing-critical: VAD can shift the first detected timestamps later.
+    r.add_argument(
+        "--vad-filter",
+        action="store_true",
+        help="Enable VAD filter during transcription (may shift early timestamps). Default: OFF.",
+    )
+    r.add_argument(
+        "--vad-min-silence-ms",
+        type=int,
+        default=500,
+        help="VAD min silence duration (ms) if VAD is enabled. Default: 500.",
+    )
 
     r.add_argument("--fps", type=int, default=30, help="Video FPS (default: 30)")
     r.add_argument("--width", type=int, default=1920, help="Video width (default: 1920)")
