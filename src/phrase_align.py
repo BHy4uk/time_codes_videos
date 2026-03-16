@@ -31,9 +31,15 @@ def _best_window_in_range(
     if phrase_len <= 0:
         return None
 
-    # window size range around phrase length
-    min_len = max(3, int(round(phrase_len * 0.75)))
-    max_len = max(min_len, int(round(phrase_len * 1.25)) + 2)
+    # window size range around phrase length.
+    # Short phrases need short windows; forcing a minimum of 3 words makes
+    # two-word phrases like "ya empezo" impossible to resolve.
+    if phrase_len <= 2:
+        min_len = 1
+        max_len = phrase_len + 1
+    else:
+        min_len = max(3, int(round(phrase_len * 0.75)))
+        max_len = max(min_len, int(round(phrase_len * 1.25)) + 2)
 
     best: Optional[Tuple[int, int, int, int, int]] = None
     best_rec: Optional[Dict[str, Any]] = None
