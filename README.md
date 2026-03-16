@@ -8,10 +8,11 @@ Deterministic pipeline:
 
 1. **Prompts → Gemini image generation** (optional stage)
 2. **Upscale** (optional stage via Real-ESRGAN)
-3. **Audio → transcription** (word timestamps) using **faster-whisper**
+3. **Audio → transcription** (word timestamps) using **faster-whisper** with `--lang en|es|auto`
 4. **Phrase alignment**: mapping.json defines phrase order; transcription is used only to find each phrase start timestamp.
 5. **Timeline generation**: asset N shows from phrase N start until phrase N+1 start; last asset until audio end.
-6. **FFmpeg rendering** to MP4 with the audio as background
+6. **Manual inspection / optional edits** to `timeline.json`
+7. **FFmpeg rendering** to MP4 with the audio as background
 
 ## Install (Windows)
 
@@ -121,11 +122,40 @@ python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py upsca
 Outputs:
 - `./img`
 
-### Step 4 — Render
+### Step 4 — Generate timeline only
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --lang auto
+```
+
+Outputs:
+- `./out/segments.json`
+- `./out/timeline.json`
+
+You can force transcription language when needed:
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --out "./out" --lang es
+```
+
+Allowed values for `--lang`:
+- `en` forces English transcription
+- `es` forces Spanish transcription
+- `auto` lets Whisper auto-detect the language
+
+### Step 5 — Render from timeline
+
+```powershell
+python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --timeline "./out/timeline.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
+```
+
+### Step 6 — Backward-compatible one-step render
 
 ```powershell
 python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
 ```
+
+This mode still generates `segments.json` and `timeline.json` automatically before rendering.
 
 If your first scene starts late, it usually means transcription timestamps start after an initial cut.
 By default we keep **VAD OFF** for strict alignment. You can explicitly enable VAD (not recommended for strict start timing) with:
