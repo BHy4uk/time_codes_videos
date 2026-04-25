@@ -17,6 +17,38 @@ def _sentence_chunks(text: str) -> List[str]:
     return [chunk.strip() for chunk in _SENTENCE_SPLIT_RE.split(text) if chunk.strip()]
 
 
+def _has_strong_first_sentence_match(
+    phrase_sentences: List[str],
+    matched_window_text: str,
+    similarity_threshold: int,
+) -> bool:
+    if len(phrase_sentences) <= 1:
+        return True
+
+    first_sentence_norm = phrase_sentences[0]
+    first_sentence_tokens = first_sentence_norm.split()
+    first_sentence_token_len = len(first_sentence_tokens)
+    matched_window_norm = normalize_text(matched_window_text)
+    candidate_prefix = " ".join(matched_window_norm.split()[: max(first_sentence_token_len + 1, 4)])
+    first_sentence_score = max(
+        int(fuzz.ratio(first_sentence_norm, candidate_prefix)),
+        int(fuzz.partial_ratio(first_sentence_norm, candidate_prefix)),
+        int(fuzz.token_set_ratio(first_sentence_norm, candidate_prefix)),
+    )
+
+    matched_tokens = matched_window_norm.split()
+    leading_token_matches = 0
+    for expected, actual in zip(first_sentence_tokens, matched_tokens):
+        if expected != actual:
+            break
+        leading_token_matches += 1
+
+    return (
+        first_sentence_score >= max(75, similarity_threshold - 10)
+        or leading_token_matches >= min(2, first_sentence_token_len)
+    )
+
+
 def _best_window_in_range(
     phrase_norm: str,
     phrase_len: int,
@@ -26,6 +58,7 @@ def _best_window_in_range(
     search_start: int,
     search_end: int,
     threshold: int,
+    phrase_sentences: Optional[List[str]] = None,
     allowed_start_indices: Optional[set[int]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Find best fuzzy match window of words within [search_start, search_end).
@@ -95,6 +128,13 @@ def _best_window_in_range(
                 "head_score": head_score,
                 "boundary_aligned": allowed_start_indices is not None and i in allowed_start_indices,
             }
+
+            if phrase_sentences and not _has_strong_first_sentence_match(
+                phrase_sentences=phrase_sentences,
+                matched_window_text=rec["matched_window_text"],
+                similarity_threshold=threshold,
+            ):
+                continue
 
             window_key = (-r, -ts, abs(wlen - phrase_len), wlen)
             current = best_by_start.get(i)
@@ -223,6 +263,7 @@ def resolve_phrase_start_times(
             search_start=search_start,
             search_end=search_end,
             threshold=similarity_threshold,
+            phrase_sentences=phrase_sentences,
             allowed_start_indices=allowed_start_indices,
         )
 
@@ -258,33 +299,6 @@ def resolve_phrase_start_times(
                 f"Could not resolve phrase {idx} to a timestamp above threshold={similarity_threshold}. "
                 f"Phrase: {phrase_raw!r}"
             )
-
-        if len(phrase_sentences) > 1:
-            first_sentence_norm = phrase_sentences[0]
-            first_sentence_tokens = first_sentence_norm.split()
-            first_sentence_token_len = len(first_sentence_tokens)
-            matched_window_norm = normalize_text(best["matched_window_text"])
-            candidate_prefix = " ".join(matched_window_norm.split()[: max(first_sentence_token_len + 1, 4)])
-            first_sentence_score = max(
-                int(fuzz.ratio(first_sentence_norm, candidate_prefix)),
-                int(fuzz.partial_ratio(first_sentence_norm, candidate_prefix)),
-                int(fuzz.token_set_ratio(first_sentence_norm, candidate_prefix)),
-            )
-            matched_tokens = matched_window_norm.split()
-            leading_token_matches = 0
-            for expected, actual in zip(first_sentence_tokens, matched_tokens):
-                if expected != actual:
-                    break
-                leading_token_matches += 1
-
-            if (
-                first_sentence_score < max(75, similarity_threshold - 10)
-                and leading_token_matches < min(2, first_sentence_token_len)
-            ):
-                raise ValueError(
-                    f"Could not resolve phrase {idx} with a strong enough match for its first sentence. "
-                    f"Phrase: {phrase_raw!r}. Candidate: {best['matched_window_text']!r}"
-                )
 
         # Update cursor: mapping phrases are atomic, so the next search begins
         # after the end of the matched window, not merely after its first word.
