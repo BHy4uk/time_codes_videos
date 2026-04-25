@@ -31,15 +31,17 @@ def _best_window_in_range(
     if phrase_len <= 0:
         return None
 
-    # window size range around phrase length.
-    # Short phrases need short windows; forcing a minimum of 3 words makes
-    # two-word phrases like "ya empezo" impossible to resolve.
+    # Window size range around phrase length.
+    # ASR often compresses spans like "novecientos sesenta y uno" into a single
+    # token such as "961", so we must allow meaningfully shorter windows than
+    # the mapping phrase length. We still keep a bounded range to avoid a broad,
+    # noisy search space.
     if phrase_len <= 2:
         min_len = 1
         max_len = phrase_len + 1
     else:
-        min_len = max(3, int(round(phrase_len * 0.75)))
-        max_len = max(min_len, int(round(phrase_len * 1.25)) + 2)
+        min_len = max(1, int(round(phrase_len * 0.4)))
+        max_len = max(min_len, int(round(phrase_len * 1.5)) + 3)
 
     best: Optional[Tuple[int, int, int, int, int]] = None
     best_rec: Optional[Dict[str, Any]] = None
