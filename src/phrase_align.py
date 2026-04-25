@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import asdict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -7,6 +8,13 @@ from rapidfuzz import fuzz
 
 from .config_schema import RuleV2 as Rule
 from .normalize import normalize_text
+
+
+_SENTENCE_SPLIT_RE = re.compile(r"[.!?]+")
+
+
+def _sentence_chunks(text: str) -> List[str]:
+    return [chunk.strip() for chunk in _SENTENCE_SPLIT_RE.split(text) if chunk.strip()]
 
 
 def _best_window_in_range(
@@ -183,6 +191,7 @@ def resolve_phrase_start_times(
         phrase_raw = rule.text
         phrase_norm = normalize_text(phrase_raw)
         phrase_len = len(phrase_norm.split())
+        phrase_sentences = [normalize_text(chunk) for chunk in _sentence_chunks(phrase_raw)]
 
         # 1) choose best coarse segment after cursor
         best_seg = None
@@ -249,6 +258,33 @@ def resolve_phrase_start_times(
                 f"Could not resolve phrase {idx} to a timestamp above threshold={similarity_threshold}. "
                 f"Phrase: {phrase_raw!r}"
             )
+
+        if len(phrase_sentences) > 1:
+            first_sentence_norm = phrase_sentences[0]
+            first_sentence_tokens = first_sentence_norm.split()
+            first_sentence_token_len = len(first_sentence_tokens)
+            matched_window_norm = normalize_text(best["matched_window_text"])
+            candidate_prefix = " ".join(matched_window_norm.split()[: max(first_sentence_token_len + 1, 4)])
+            first_sentence_score = max(
+                int(fuzz.ratio(first_sentence_norm, candidate_prefix)),
+                int(fuzz.partial_ratio(first_sentence_norm, candidate_prefix)),
+                int(fuzz.token_set_ratio(first_sentence_norm, candidate_prefix)),
+            )
+            matched_tokens = matched_window_norm.split()
+            leading_token_matches = 0
+            for expected, actual in zip(first_sentence_tokens, matched_tokens):
+                if expected != actual:
+                    break
+                leading_token_matches += 1
+
+            if (
+                first_sentence_score < max(75, similarity_threshold - 10)
+                and leading_token_matches < min(2, first_sentence_token_len)
+            ):
+                raise ValueError(
+                    f"Could not resolve phrase {idx} with a strong enough match for its first sentence. "
+                    f"Phrase: {phrase_raw!r}. Candidate: {best['matched_window_text']!r}"
+                )
 
         # Update cursor: mapping phrases are atomic, so the next search begins
         # after the end of the matched window, not merely after its first word.
