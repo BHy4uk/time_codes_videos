@@ -60,10 +60,6 @@ def _best_window_in_range(
             window_tokens = words_norm[i : i + wlen]
             window_norm = " ".join(window_tokens)
             ts = int(fuzz.token_set_ratio(phrase_norm, window_norm))
-            if ts < threshold:
-                continue
-
-            r = int(fuzz.ratio(phrase_norm, window_norm))
             window_head_tokens = window_tokens[: min(max(phrase_head_len + 1, 4), len(window_tokens))]
             window_head = " ".join(window_head_tokens)
             head_score = max(
@@ -71,6 +67,15 @@ def _best_window_in_range(
                 int(fuzz.partial_ratio(phrase_head, window_head)),
                 int(fuzz.token_set_ratio(phrase_head, window_head)),
             )
+
+            # For mapping-based alignment, the beginning of the phrase is the
+            # most important signal. ASR can badly distort later words, so we
+            # keep candidates with a strong phrase-start match even when the
+            # full-window token_set_ratio falls below the global threshold.
+            if ts < threshold and head_score < max(80, threshold - 5):
+                continue
+
+            r = int(fuzz.ratio(phrase_norm, window_norm))
 
             rec = {
                 "word_index": i,
