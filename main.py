@@ -33,6 +33,7 @@ Key principles:
 Commands:
   python main.py generate --prompts ./prompts --count 3 --seed 42
   python main.py upscale --scale 4
+    python main.py phrases --input ./audio.mp3 --out ./out --lang auto
     python main.py timeline --config ./config/mapping.json --audio ./audio.mp3 --lang auto
   python main.py render --config ./config/mapping.json --audio ./audio.mp3
     python main.py render --timeline ./out/timeline.json --audio ./audio.mp3
@@ -135,6 +136,54 @@ def _build_timeline_artifacts(args: argparse.Namespace) -> tuple[object, dict, P
     )
 
     return cfg, timeline, audio_path, out_dir
+
+
+def _cmd_phrases(args: argparse.Namespace) -> None:
+    try:
+        from src.transcribe import extract_phrase_timeline, transcribe_audio
+    except ModuleNotFoundError as e:
+        raise SystemExit(
+            "Missing Python dependency for `phrases`: "
+            f"{e.name}\n"
+            "Install transcription dependencies in your active environment and retry:\n"
+            "  pip install faster-whisper"
+        ) from e
+
+    media_path = Path(args.input)
+    if not media_path.exists():
+        raise SystemExit(f"Input media file not found: {media_path}")
+
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    transcript = transcribe_audio(
+        audio_path=str(media_path),
+        model_size_or_path=args.model,
+        device=args.device,
+        compute_type=args.compute_type,
+        language=_resolve_transcription_language(args.lang),
+        vad_filter=args.vad_filter,
+        vad_min_silence_ms=args.vad_min_silence_ms,
+    )
+    phrases = extract_phrase_timeline(transcript)
+
+    (out_dir / "phrases.json").write_text(
+        json.dumps(
+            {
+                "input": str(media_path),
+                "language": transcript.get("language"),
+                "duration": transcript.get("duration"),
+                "phrases": phrases,
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+
+    print("Done (phrases)")
+    print(f"- Out: {out_dir}")
+    print("- Wrote: phrases.json")
 
 
 def _cmd_generate(args: argparse.Namespace) -> None:
@@ -295,6 +344,34 @@ def parse_args() -> argparse.Namespace:
         help="Optional path to realesrgan-ncnn-vulkan.exe (else uses REALESRGAN_PATH env or default path)",
     )
     u.set_defaults(func=_cmd_upscale)
+
+    # phrases
+    ph = sub.add_parser("phrases", help="Transcribe audio or video and write phrase timestamps without mapping")
+    ph.add_argument("--input", required=True, help="Path to input audio or video file")
+    ph.add_argument("--out", default="./out", help="Output folder")
+    ph.add_argument("--model", default="base", help="faster-whisper model size or path (default: base)")
+    ph.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
+    ph.add_argument("--compute-type", default="int8", help="Compute type for faster-whisper (default: int8)")
+    ph.add_argument(
+        "--lang",
+        "--language",
+        dest="lang",
+        choices=LANG_CHOICES,
+        default="auto",
+        help="Transcription language: en, es, or auto (default: auto)",
+    )
+    ph.add_argument(
+        "--vad-filter",
+        action="store_true",
+        help="Enable VAD filter during transcription (may shift early timestamps). Default: OFF.",
+    )
+    ph.add_argument(
+        "--vad-min-silence-ms",
+        type=int,
+        default=500,
+        help="VAD min silence duration (ms) if VAD is enabled. Default: 500.",
+    )
+    ph.set_defaults(func=_cmd_phrases)
 
     # timeline
     t = sub.add_parser("timeline", help="Transcribe audio, resolve phrase starts, and write timeline artifacts")

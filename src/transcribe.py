@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from faster_whisper import WhisperModel
 
@@ -14,7 +14,7 @@ def transcribe_audio(
     vad_filter: bool = False,
     vad_min_silence_ms: int = 500,
 ) -> Dict[str, Any]:
-    """Transcribe audio with word-level timestamps using faster-whisper.
+    """Transcribe audio or video media with word-level timestamps using faster-whisper.
 
     IMPORTANT: For strict timing alignment, VAD is disabled by default because
     it can suppress early speech and shift the first segment/word timestamps later.
@@ -103,3 +103,30 @@ def transcribe_audio(
         "segments": segments,
         "words": words,
     }
+
+
+def extract_phrase_timeline(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert Whisper segments into a phrase timeline artifact."""
+
+    phrases: List[Dict[str, Any]] = []
+    for index, segment in enumerate(transcript.get("segments") or []):
+        text = str(segment.get("text", "")).strip()
+        if not text:
+            continue
+
+        start = float(segment.get("start", 0.0))
+        end = float(segment.get("end", start))
+        if end < start:
+            end = start
+
+        phrases.append(
+            {
+                "index": index,
+                "segment_id": int(segment.get("id", index)),
+                "start": start,
+                "end": end,
+                "text": text,
+            }
+        )
+
+    return phrases

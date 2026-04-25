@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""Windows helper runner for batch processing cases/blocks.
+"""Windows helper runner for a single working folder.
 
 Workflow:
-1) Ask for case id (e.g., case_002) and block id (e.g., block_00)
-2) Ensure folders exist:
-   - D:\State_51\cases\<case>\<block>\out
-   - D:\State_51\cases\<case>\<block>\config
+1) Ask for a working folder name under D:\Youtube\Work (e.g., video)
+2) Ensure ./out and ./config exist inside that folder
 3) Ensure mapping.json exists (create a template if missing)
-4) Run transcription-only
-5) Ask for confirmation, then run full pipeline render
+4) Run phrases extraction only
+5) Ask for confirmation, then run timeline generation and render
 
 This script is optional convenience tooling. It does not change the deterministic
 matching/rendering behavior in main.py.
@@ -22,7 +20,8 @@ import sys
 from pathlib import Path
 
 
-BASE_DIR = Path(r"D:\State_51\cases")
+BASE_DIR = Path(r"D:\Youtube\Work")
+REPO_ROOT = Path(__file__).resolve().parent
 
 
 def _prompt(label: str, example: str) -> str:
@@ -45,7 +44,8 @@ def _ensure_mapping_json(config_dir: Path) -> Path:
     template = {
         "rules": [
             {
-                "image": "01.png",
+                "asset": "01.png",
+                "type": "image",
                 "text": "Full sentence or paragraph ...",
                 "effects": {
                     "zoom": {"type": "in", "scale": 1.1, "duration": 4},
@@ -74,20 +74,19 @@ def _run(cmd: list[str]) -> None:
 
 
 def main() -> None:
-    print("=== State_51 Case Runner ===")
-    case_id = _prompt("Enter case", "case_002")
-    block_id = _prompt("Enter block", "block_00")
+    print("=== Working Folder Runner ===")
+    folder_name = _prompt("Enter working folder", "video")
 
-    case_dir = BASE_DIR / case_id / block_id
-    audio_path = case_dir / "audio" / "audio.mp3"
-    images_dir = case_dir / "images"
-    out_dir = case_dir / "out"
-    config_dir = case_dir / "config"
+    work_dir = BASE_DIR / folder_name
+    audio_path = work_dir / "audio" / "audio.mp3"
+    assets_dir = work_dir / "img"
+    out_dir = work_dir / "out"
+    config_dir = work_dir / "config"
 
     if not audio_path.exists():
         raise SystemExit(f"Audio not found: {audio_path}")
-    if not images_dir.exists():
-        print(f"Warning: images folder not found yet: {images_dir}")
+    if not assets_dir.exists():
+        print(f"Warning: assets folder not found yet: {assets_dir}")
 
     _ensure_dir(out_dir)
     _ensure_dir(config_dir)
@@ -95,50 +94,70 @@ def main() -> None:
 
     print("\nPaths:")
     print(f"- Audio:   {audio_path}")
-    print(f"- Images:  {images_dir}")
+    print(f"- Assets:  {assets_dir}")
     print(f"- Config:  {mapping_path}")
     print(f"- Out:     {out_dir}")
 
-    # 1) Transcribe only
-    print("\n[1/2] Transcription (transcribe-only) starting...")
+    # 1) Extract phrases only
+    print("\n[1/3] Phrase extraction starting...")
     _run(
         [
             sys.executable,
-            "main.py",
-            "--audio",
+            str(REPO_ROOT / "main.py"),
+            "phrases",
+            "--input",
             str(audio_path),
             "--out",
             str(out_dir),
-            "--transcribe-only",
         ]
     )
-    print("[1/2] Transcription complete.")
-    print(f"Segments saved to: {out_dir / 'segments.json'}")
+    print("[1/3] Phrase extraction complete.")
+    print(f"Phrases saved to: {out_dir / 'phrases.json'}")
 
-    # Ask for confirmation before render
-    print("\nNow you can update mapping.json based on segments.json.")
-    answer = input("Run full pipeline render now? (y/N): ").strip().lower()
+    # Ask for confirmation before timeline/render
+    print("\nNow you can update mapping.json based on phrases.json.")
+    answer = input("Run timeline and render now? (y/N): ").strip().lower()
     if answer not in ("y", "yes"):
-        print("Stopped. You can run the render step later by re-running this script.")
+        print("Stopped. You can run the timeline/render steps later by re-running this script.")
         return
 
-    # 2) Full pipeline
-    print("\n[2/2] Full pipeline render starting...")
+    # 2) Timeline
+    print("\n[2/3] Timeline generation starting...")
     _run(
         [
             sys.executable,
-            "main.py",
+            str(REPO_ROOT / "main.py"),
+            "timeline",
             "--audio",
             str(audio_path),
-            "--images",
-            str(images_dir),
             "--config",
             str(mapping_path),
+            "--assets",
+            str(assets_dir),
             "--out",
             str(out_dir),
         ]
     )
-    print("[2/2] Render complete.")
+    print("[2/3] Timeline generation complete.")
+
+    # 3) Render
+    print("\n[3/3] Render starting...")
+    _run(
+        [
+            sys.executable,
+            str(REPO_ROOT / "main.py"),
+            "render",
+            "--audio",
+            str(audio_path),
+            "--config",
+            str(mapping_path),
+            "--assets",
+            str(assets_dir),
+            "--out",
+            str(out_dir),
+        ]
+    )
+    print("[3/3] Render complete.")
     print(f"Video: {out_dir / 'output.mp4'}")
 
 

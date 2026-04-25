@@ -1,6 +1,6 @@
 # time_codes_videos
 
-Local, deterministic CLI tool to generate a video by synchronizing fullscreen images with spoken phrases in an audio file.
+Local, deterministic CLI tool to generate a video by synchronizing fullscreen images with spoken phrases from audio or video media.
 
 ## What it does
 
@@ -8,11 +8,12 @@ Deterministic pipeline:
 
 1. **Prompts → Gemini image generation** (optional stage)
 2. **Upscale** (optional stage via Real-ESRGAN)
-3. **Audio → transcription** (word timestamps) using **faster-whisper** with `--lang en|es|auto`
-4. **Phrase alignment**: mapping.json defines phrase order; transcription is used only to find each phrase start timestamp.
-5. **Timeline generation**: asset N shows from phrase N start until phrase N+1 start; last asset until audio end.
-6. **Manual inspection / optional edits** to `timeline.json`
-7. **FFmpeg rendering** to MP4 with the audio as background
+3. **Media → phrase extraction** (optional standalone stage) using **faster-whisper** with `--lang en|es|auto`
+4. **Audio → transcription** (word timestamps) using **faster-whisper** with `--lang en|es|auto`
+5. **Phrase alignment**: mapping.json defines phrase order; transcription is used only to find each phrase start timestamp.
+6. **Timeline generation**: asset N shows from phrase N start until phrase N+1 start; last asset until audio end.
+7. **Manual inspection / optional edits** to `timeline.json`
+8. **FFmpeg rendering** to MP4 with the audio as background
 
 ## Install (Windows)
 
@@ -44,15 +45,15 @@ ffprobe -version
 
 ## Run (Windows) — block-based execution
 
-This project is designed so that **each block folder is an independent production unit**.
-You work inside a specific block directory (current working directory), while calling `main.py` from the repository using its full path.
+This project is designed so that the **current working folder is the production unit**.
+You work inside a specific folder, while calling `main.py` from the repository using its full path.
 
 ### Directory layout (example)
 
-Block folder:
+Working folder:
 
 ```
-D:\State_51\cases\case_007\block_00\
+D:\Youtube\Work\video\
   audio\
     audio.mp3
   prompts\
@@ -66,7 +67,7 @@ D:\State_51\cases\case_007\block_00\
 Repository (tooling):
 
 ```
-C:\Users\DZ\source\repos\videos_creations\time_codes_videos\
+C:\Users\user\source\repos\time_codes_videos\
   main.py
   src\...
   requirements.txt
@@ -75,9 +76,9 @@ C:\Users\DZ\source\repos\videos_creations\time_codes_videos\
 
 ### Environment variables (.env)
 
-The `.env` file stays in the **repository root** (NOT inside blocks):
+The `.env` file stays in the **repository root** (NOT inside the working folder):
 
-`C:\Users\DZ\source\repos\videos_creations\time_codes_videos\.env`
+`C:\Users\user\source\repos\time_codes_videos\.env`
 
 It must contain:
 
@@ -88,7 +89,7 @@ REALESRGAN_PATH=C:\AI\RealESRGAN\realesrgan-ncnn-vulkan.exe
 
 ### Important clarifications
 
-- **All relative paths** like `./prompts`, `./img`, `./config`, `./out` are resolved from your **current working directory** (the block folder).
+- **All relative paths** like `./prompts`, `./img`, `./config`, `./out` are resolved from your **current working directory**.
 - `main.py` is called using its **full path** from the repository.
 - There is **no base-dir parameter**.
 - The pipeline will fail fast if dependencies are missing (Gemini key, Real-ESRGAN, FFmpeg).
@@ -97,35 +98,56 @@ REALESRGAN_PATH=C:\AI\RealESRGAN\realesrgan-ncnn-vulkan.exe
 
 ## Execution flow
 
-### Step 1 — Navigate to the block directory
+### Step 1 — Navigate to the working directory
 
 ```powershell
-cd D:\State_51\cases\case_007\block_00
+cd D:\Youtube\Work\video
 ```
 
 ### Step 2 — Generate images (Gemini)
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py generate --prompts "./prompts" --count 1 --seed 42
+python C:\Users\user\source\repos\time_codes_videos\main.py generate --prompts "./prompts" --count 1 --seed 42
 ```
 
-Outputs (in the block folder):
+Outputs (in the working folder):
 - `./generated`
 - `./upscale_queue`
 
 ### Step 3 — Upscale (Real-ESRGAN)
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py upscale --scale 4
+python C:\Users\user\source\repos\time_codes_videos\main.py upscale --scale 4
 ```
 
 Outputs:
 - `./img`
 
-### Step 4 — Generate timeline only
+### Step 4 — Extract phrase timelines only (no mapping)
+
+Use this mode when you only need phrase timestamps from an audio or video file.
+
+From audio:
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --lang auto
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./audio/audio.mp3" --out "./out" --lang es
+```
+
+From video:
+
+```powershell
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./source.mp4" --out "./out" --lang auto
+```
+
+Outputs:
+- `./out/phrases.json`
+
+`phrases.json` contains the detected phrase segments with `index`, `segment_id`, `start`, `end`, and `text`.
+
+### Step 5 — Generate timeline from mapping
+
+```powershell
+python C:\Users\user\source\repos\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --lang auto
 ```
 
 Outputs:
@@ -135,7 +157,7 @@ Outputs:
 You can force transcription language when needed:
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --out "./out" --lang es
+python C:\Users\user\source\repos\time_codes_videos\main.py timeline --config "./config/mapping.json" --audio "./audio/audio.mp3" --out "./out" --lang es
 ```
 
 Allowed values for `--lang`:
@@ -143,16 +165,16 @@ Allowed values for `--lang`:
 - `es` forces Spanish transcription
 - `auto` lets Whisper auto-detect the language
 
-### Step 5 — Render from timeline
+### Step 6 — Render from timeline
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --timeline "./out/timeline.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
+python C:\Users\user\source\repos\time_codes_videos\main.py render --timeline "./out/timeline.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
 ```
 
-### Step 6 — Backward-compatible one-step render
+### Step 7 — Backward-compatible one-step render
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
+python C:\Users\user\source\repos\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out"
 ```
 
 This mode still generates `segments.json` and `timeline.json` automatically before rendering.
@@ -161,13 +183,13 @@ If your first scene starts late, it usually means transcription timestamps start
 By default we keep **VAD OFF** for strict alignment. You can explicitly enable VAD (not recommended for strict start timing) with:
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --vad-filter
+python C:\Users\user\source\repos\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --vad-filter
 ```
 
 Debug mode (prints ffmpeg commands, per-scene durations/frame counts, and ffprobe durations):
 
 ```powershell
-python C:\Users\DZ\source\repos\videos_creations\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --debug-render
+python C:\Users\user\source\repos\time_codes_videos\main.py render --config "./config/mapping.json" --audio "./audio/audio.mp3" --assets "./img" --out "./out" --debug-render
 ```
 
 Output:
