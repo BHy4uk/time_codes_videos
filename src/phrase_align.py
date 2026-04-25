@@ -18,6 +18,7 @@ def _best_window_in_range(
     search_start: int,
     search_end: int,
     threshold: int,
+    allowed_start_indices: Optional[set[int]] = None,
 ) -> Optional[Dict[str, Any]]:
     """Find best fuzzy match window of words within [search_start, search_end).
 
@@ -31,6 +32,10 @@ def _best_window_in_range(
     if phrase_len <= 0:
         return None
 
+    phrase_tokens = phrase_norm.split()
+    phrase_head_len = min(4, len(phrase_tokens))
+    phrase_head = " ".join(phrase_tokens[:phrase_head_len])
+
     # Window size range around phrase length.
     # ASR often compresses spans like "novecientos sesenta y uno" into a single
     # token such as "961", so we must allow meaningfully shorter windows than
@@ -43,36 +48,62 @@ def _best_window_in_range(
         min_len = max(1, int(round(phrase_len * 0.4)))
         max_len = max(min_len, int(round(phrase_len * 1.5)) + 3)
 
-    best: Optional[Tuple[int, int, int, int, int]] = None
-    best_rec: Optional[Dict[str, Any]] = None
-
     end_limit = min(len(words_norm), search_end)
     start_limit = max(0, search_start)
+    best_by_start: Dict[int, Dict[str, Any]] = {}
 
     for wlen in range(min_len, max_len + 1):
         if start_limit + wlen > end_limit:
             break
 
         for i in range(start_limit, end_limit - wlen + 1):
-            window_norm = " ".join(words_norm[i : i + wlen])
+            window_tokens = words_norm[i : i + wlen]
+            window_norm = " ".join(window_tokens)
             ts = int(fuzz.token_set_ratio(phrase_norm, window_norm))
             if ts < threshold:
                 continue
 
             r = int(fuzz.ratio(phrase_norm, window_norm))
+            window_head_tokens = window_tokens[: min(max(phrase_head_len + 1, 4), len(window_tokens))]
+            window_head = " ".join(window_head_tokens)
+            head_score = max(
+                int(fuzz.ratio(phrase_head, window_head)),
+                int(fuzz.partial_ratio(phrase_head, window_head)),
+                int(fuzz.token_set_ratio(phrase_head, window_head)),
+            )
 
-            key = (-ts, -r, i, wlen)
-            if best is None or key < best:
-                best = key
-                best_rec = {
-                    "word_index": i,
-                    "word_len": wlen,
-                    "token_set_ratio": ts,
-                    "ratio": r,
-                    "start": float(words_start[i]),
-                    "matched_window_text": " ".join(words_raw[i : i + wlen]),
-                }
+            rec = {
+                "word_index": i,
+                "word_len": wlen,
+                "token_set_ratio": ts,
+                "ratio": r,
+                "start": float(words_start[i]),
+                "matched_window_text": " ".join(words_raw[i : i + wlen]),
+                "head_score": head_score,
+                "boundary_aligned": allowed_start_indices is not None and i in allowed_start_indices,
+            }
 
+            window_key = (-r, -ts, abs(wlen - phrase_len), wlen)
+            current = best_by_start.get(i)
+            if current is None or window_key < current["window_key"]:
+                rec["window_key"] = window_key
+                best_by_start[i] = rec
+
+    if not best_by_start:
+        return None
+
+    def start_key(rec: Dict[str, Any]) -> Tuple[int, int, int, int, int, int]:
+        return (
+            0 if rec["boundary_aligned"] else 1,
+            -int(rec["head_score"]),
+            -int(rec["ratio"]),
+            -int(rec["token_set_ratio"]),
+            rec["word_index"],
+            rec["word_len"],
+        )
+
+    best_rec = min(best_by_start.values(), key=start_key)
+    best_rec.pop("window_key", None)
     return best_rec
 
 
@@ -114,6 +145,10 @@ def resolve_phrase_start_times(
     words_raw = [str(w.get("text", "")).strip() for w in words]
     words_norm = [normalize_text(w) for w in words_raw]
     words_start = [float(w.get("start", 0.0)) for w in words]
+    allowed_start_indices: set[int] = {0}
+    for index, word_text in enumerate(words_raw[:-1]):
+        if word_text.rstrip().endswith((".", "!", "?")):
+            allowed_start_indices.add(index + 1)
 
     segments = transcript.get("segments") or []
 
@@ -132,6 +167,7 @@ def resolve_phrase_start_times(
                 "text_norm": normalize_text(str(s.get("text", ""))),
             }
         )
+        allowed_start_indices.add(int(s.get("word_start", 0)))
 
     resolved: List[Dict[str, Any]] = []
 
@@ -173,6 +209,7 @@ def resolve_phrase_start_times(
             search_start=search_start,
             search_end=search_end,
             threshold=similarity_threshold,
+            allowed_start_indices=allowed_start_indices,
         )
 
         # Deterministic anchoring fix for the FIRST phrase.
@@ -208,8 +245,9 @@ def resolve_phrase_start_times(
                 f"Phrase: {phrase_raw!r}"
             )
 
-        # Update cursor: next phrase search starts after this phrase start.
-        cursor_word_idx = int(best["word_index"]) + 1
+        # Update cursor: mapping phrases are atomic, so the next search begins
+        # after the end of the matched window, not merely after its first word.
+        cursor_word_idx = int(best["word_index"]) + int(best["word_len"])
 
         resolved.append(
             {
