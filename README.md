@@ -127,22 +127,39 @@ Outputs:
 
 Use this mode when you only need phrase timestamps from an audio or video file.
 
-From audio:
+Audio, split by sentences:
 
 ```powershell
-python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./audio/audio.mp3" --out "./out" --lang es
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./audio/audio.mp3" --out "./out" --lang es --split sentences
 ```
 
-From video:
+Audio, split by words:
 
 ```powershell
-python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./source.mp4" --out "./out" --lang auto
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./audio/audio.mp3" --out "./out" --lang es --split words
+```
+
+Video, split by sentences:
+
+```powershell
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./source.mp4" --out "./out" --lang auto --split sentences
+```
+
+Video, split by words:
+
+```powershell
+python C:\Users\user\source\repos\time_codes_videos\main.py phrases --input "./source.mp4" --out "./out" --lang auto --split words
 ```
 
 Outputs:
 - `./out/phrases.json`
 
-`phrases.json` contains the detected phrase segments with `index`, `segment_id`, `start`, `end`, and `text`.
+Available values for `--split`:
+- `segments` uses the original Whisper segments
+- `sentences` groups words until sentence-ending punctuation like `.`, `!`, or `?`
+- `words` creates one segment per word
+
+`phrases.json` always contains `index`, `start`, `end`, and `text` for each item, plus mode-specific metadata such as `segment_id`, `source_segment_ids`, or `word_index`.
 
 ### Step 5 — Generate timeline from mapping
 

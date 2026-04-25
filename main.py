@@ -165,7 +165,7 @@ def _cmd_phrases(args: argparse.Namespace) -> None:
         vad_filter=args.vad_filter,
         vad_min_silence_ms=args.vad_min_silence_ms,
     )
-    phrases = extract_phrase_timeline(transcript)
+    phrases = extract_phrase_timeline(transcript, split=args.split)
 
     (out_dir / "phrases.json").write_text(
         json.dumps(
@@ -173,6 +173,7 @@ def _cmd_phrases(args: argparse.Namespace) -> None:
                 "input": str(media_path),
                 "language": transcript.get("language"),
                 "duration": transcript.get("duration"),
+                "split": args.split,
                 "phrases": phrases,
             },
             ensure_ascii=False,
@@ -352,6 +353,12 @@ def parse_args() -> argparse.Namespace:
     ph.add_argument("--model", default="base", help="faster-whisper model size or path (default: base)")
     ph.add_argument("--device", default="cpu", help="Device for faster-whisper: cpu/cuda (default: cpu)")
     ph.add_argument("--compute-type", default="int8", help="Compute type for faster-whisper (default: int8)")
+    ph.add_argument(
+        "--split",
+        choices=("segments", "sentences", "words"),
+        default="segments",
+        help="Phrase segmentation mode: Whisper segments, sentence boundaries, or one item per word (default: segments)",
+    )
     ph.add_argument(
         "--lang",
         "--language",

@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional
 
 from faster_whisper import WhisperModel
+
+
+_SENTENCE_END_RE = re.compile(r"[.!?]+(?:[\"')\]\u00bb\u201d\u2019]+)?$")
 
 
 def transcribe_audio(
@@ -105,8 +109,12 @@ def transcribe_audio(
     }
 
 
-def extract_phrase_timeline(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Convert Whisper segments into a phrase timeline artifact."""
+def _is_sentence_end(token: str) -> bool:
+    return bool(_SENTENCE_END_RE.search(token.strip()))
+
+
+def _extract_segment_phrases(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert Whisper segments into phrase timeline entries."""
 
     phrases: List[Dict[str, Any]] = []
     for index, segment in enumerate(transcript.get("segments") or []):
@@ -130,3 +138,113 @@ def extract_phrase_timeline(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
 
     return phrases
+
+
+def _extract_word_phrases(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert Whisper word timestamps into one-entry-per-word timeline entries."""
+
+    phrases: List[Dict[str, Any]] = []
+    for index, word in enumerate(transcript.get("words") or []):
+        text = str(word.get("text", "")).strip()
+        if not text:
+            continue
+
+        start = float(word.get("start", 0.0))
+        end = float(word.get("end", start))
+        if end < start:
+            end = start
+
+        phrases.append(
+            {
+                "index": len(phrases),
+                "word_index": index,
+                "start": start,
+                "end": end,
+                "text": text,
+            }
+        )
+
+    return phrases
+
+
+def _extract_sentence_phrases(transcript: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Convert Whisper word timestamps into sentence-level timeline entries."""
+
+    words = transcript.get("words") or []
+    if not isinstance(words, list) or not words:
+        return _extract_segment_phrases(transcript)
+
+    phrases: List[Dict[str, Any]] = []
+    current_words: List[str] = []
+    current_segment_ids: set[int] = set()
+    sentence_start: Optional[float] = None
+    sentence_end: Optional[float] = None
+
+    segments = transcript.get("segments") or []
+    segment_ranges: List[tuple[int, int, int]] = []
+    for segment in segments:
+        segment_ranges.append(
+            (
+                int(segment.get("id", 0)),
+                int(segment.get("word_start", 0)),
+                int(segment.get("word_end", 0)),
+            )
+        )
+
+    def append_sentence() -> None:
+        nonlocal current_words, current_segment_ids, sentence_start, sentence_end
+        text = " ".join(current_words).strip()
+        if not text or sentence_start is None or sentence_end is None:
+            current_words = []
+            current_segment_ids = set()
+            sentence_start = None
+            sentence_end = None
+            return
+
+        phrases.append(
+            {
+                "index": len(phrases),
+                "start": sentence_start,
+                "end": sentence_end,
+                "text": text,
+                "source_segment_ids": sorted(current_segment_ids),
+            }
+        )
+        current_words = []
+        current_segment_ids = set()
+        sentence_start = None
+        sentence_end = None
+
+    for word_index, word in enumerate(words):
+        text = str(word.get("text", "")).strip()
+        if not text:
+            continue
+
+        start = float(word.get("start", 0.0))
+        end = float(word.get("end", start))
+        if sentence_start is None:
+            sentence_start = start
+        sentence_end = end if end >= start else start
+        current_words.append(text)
+
+        for segment_id, word_start, word_end in segment_ranges:
+            if word_start <= word_index < word_end:
+                current_segment_ids.add(segment_id)
+
+        if _is_sentence_end(text):
+            append_sentence()
+
+    append_sentence()
+    return phrases
+
+
+def extract_phrase_timeline(transcript: Dict[str, Any], split: str = "segments") -> List[Dict[str, Any]]:
+    """Convert a transcript into timeline entries using the requested granularity."""
+
+    if split == "segments":
+        return _extract_segment_phrases(transcript)
+    if split == "sentences":
+        return _extract_sentence_phrases(transcript)
+    if split == "words":
+        return _extract_word_phrases(transcript)
+    raise ValueError(f"Unsupported phrase split mode: {split}")
